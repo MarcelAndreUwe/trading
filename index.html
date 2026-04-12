@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="de" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trading Cockpit - Steuer & Analyse Tool</title>
+  <meta name="description" content="Interaktives Trading-Analyse-Tool für deutsche Aktienhändler. Steuerberechnung, Break-Even, Volatilität und mehr.">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0F172A">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { DEFAULT: '#06B6D4', dark: '#0891B2' },
+            surface: { 900: '#0F172A', 800: '#1E293B', 700: '#334155', 600: '#475569' }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Alpine.js wird in app.js als ES-Modul importiert und manuell gestartet -->
+
+  <!-- ApexCharts -->
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts@latest/dist/apexcharts.min.js"></script>
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="css/custom.css">
+
+  <!-- App Module -->
+  <script type="module" src="js/app.js"></script>
+
+  <!-- Service Worker Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
+    }
+  </script>
+</head>
+<body class="bg-surface-900 text-slate-50 min-h-screen" x-data="tradingCockpit">
+
+  <!-- ===== TOP BAR ===== -->
+  <header class="sticky top-0 z-50 bg-surface-800 border-b border-surface-700 px-4 py-2 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <!-- Mobile Menu Toggle -->
+      <button @click="$store.app.ui.mobileMenuOpen = !$store.app.ui.mobileMenuOpen"
+              class="lg:hidden p-2 rounded-lg hover:bg-surface-700">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+      </button>
+      <!-- Logo -->
+      <div class="flex items-center gap-2">
+        <svg class="w-7 h-7 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+        </svg>
+        <h1 class="text-lg font-bold hidden sm:block">Trading Cockpit</h1>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <!-- API Status -->
+      <div class="flex items-center gap-1.5 text-xs px-2 py-1 rounded-full"
+           :class="$store.app.settings.apiKey ? 'bg-green-500/10 text-green-400' : 'bg-amber-500/10 text-amber-400'">
+        <span class="w-2 h-2 rounded-full"
+              :class="$store.app.settings.apiKey ? 'bg-green-500' : 'bg-amber-500'"></span>
+        <span x-text="$store.app.settings.apiKey ? 'API aktiv' : 'Kein API-Key'"></span>
+      </div>
+
+      <!-- Settings Button -->
+      <button @click="$store.app.ui.showSettings = !$store.app.ui.showSettings"
+              class="p-2 rounded-lg hover:bg-surface-700 transition-colors" title="Einstellungen">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+      </button>
+
+      <!-- Glossar Button -->
+      <button @click="$store.app.ui.showGlossary = !$store.app.ui.showGlossary"
+              class="p-2 rounded-lg hover:bg-surface-700 transition-colors" title="Glossar">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="flex h-[calc(100vh-49px)]">
+    <!-- ===== SIDEBAR ===== -->
+    <aside class="w-80 flex-shrink-0 bg-surface-800 border-r border-surface-700 overflow-y-auto hidden lg:block"
+           :class="{ '!block fixed inset-0 top-[49px] z-40': $store.app.ui.mobileMenuOpen }">
+      <div class="p-4 space-y-5">
+
+        <!-- Aktiensuche -->
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Aktie suchen</label>
+          <div class="relative">
+            <input type="text"
+                   x-model="$store.app.search.query"
+                   @input.debounce.300ms="searchStocks($store.app.search.query)"
+                   @focus="$store.app.search.show = $store.app.search.results.length > 0"
+                   @click.away="$store.app.search.show = false"
+                   placeholder="z.B. SAP, Siemens, AAPL..."
+                   class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50 focus:border-brand placeholder-slate-500">
+            <svg class="absolute right-3 top-2.5 w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <!-- Autocomplete Dropdown -->
+            <div x-show="$store.app.search.show" x-transition
+                 class="absolute z-10 mt-1 w-full bg-surface-800 border border-surface-600 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+              <template x-for="stock in $store.app.search.results" :key="stock.symbol">
+                <button @click="selectStock(stock)"
+                        class="w-full text-left px-3 py-2 text-sm hover:bg-surface-700 flex justify-between items-center">
+                  <span>
+                    <span class="font-medium text-brand" x-text="stock.symbol"></span>
+                    <span class="text-slate-300 ml-1" x-text="stock.name"></span>
+                  </span>
+                  <span class="text-xs text-slate-500" x-text="stock.index"></span>
+                </button>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <!-- Positionsdaten -->
+        <div class="space-y-3">
+          <h3 class="text-sm font-semibold text-slate-300 flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+            </svg>
+            Position
+          </h3>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Anzahl Aktien</label>
+              <input type="number" min="0" step="1"
+                     x-model.number="$store.app.position.shares"
+                     class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Kaufkurs (EUR)</label>
+              <input type="number" min="0" step="0.01"
+                     x-model.number="$store.app.position.buyPrice"
+                     class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Aktueller Kurs (EUR)</label>
+              <input type="number" min="0" step="0.01"
+                     x-model.number="$store.app.position.currentPrice"
+                     class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">
+                <span class="tooltip-trigger" tabindex="0">
+                  Gebühr (EUR)
+                  <span class="tooltip-content">Fremdkostenpauschale pro Trade, z.B. 1,00 EUR bei Trade Republic</span>
+                </span>
+              </label>
+              <input type="number" min="0" step="0.01"
+                     x-model.number="$store.app.position.brokerFee"
+                     class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+            </div>
+          </div>
+
+          <!-- Kurs laden Button -->
+          <div x-show="$store.app.position.ticker" class="flex gap-2">
+            <button @click="fetchQuote($store.app.position.ticker)"
+                    :disabled="$store.app.market.loading"
+                    class="flex-1 text-xs px-3 py-2 rounded-lg bg-brand/20 text-brand hover:bg-brand/30 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5">
+              <svg x-show="!$store.app.market.loading" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+              <svg x-show="$store.app.market.loading" class="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"/>
+                <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" class="opacity-75"/>
+              </svg>
+              <span x-text="$store.app.market.loading ? 'Laden...' : 'Kurs aktualisieren'"></span>
+            </button>
+          </div>
+
+          <!-- Markt-Info -->
+          <div x-show="$store.app.market.quote" class="bg-surface-900 rounded-lg p-3 text-sm space-y-1">
+            <div class="flex justify-between text-slate-400">
+              <span>Aktueller Kurs:</span>
+              <span class="font-medium" :class="$store.app.market.quote?.change >= 0 ? 'text-green-400' : 'text-red-400'"
+                    x-text="fmt.formatEur($store.app.market.quote?.price)"></span>
+            </div>
+            <div class="flex justify-between text-xs text-slate-500">
+              <span>Tageshoch/-tief:</span>
+              <span x-text="($store.app.market.quote?.dayHigh ? fmt.formatNumber($store.app.market.quote.dayHigh) : '--') + ' / ' + ($store.app.market.quote?.dayLow ? fmt.formatNumber($store.app.market.quote.dayLow) : '--')"></span>
+            </div>
+            <div class="flex justify-between text-xs text-slate-500">
+              <span>Änderung:</span>
+              <span :class="$store.app.market.quote?.change >= 0 ? 'text-green-400' : 'text-red-400'"
+                    x-text="fmt.formatPercentSigned($store.app.market.quote?.changePercent)"></span>
+            </div>
+          </div>
+
+          <!-- Investitionssumme Anzeige -->
+          <div class="bg-surface-900 rounded-lg p-3 text-sm" x-show="$store.app.position.shares > 0 && $store.app.position.buyPrice > 0">
+            <div class="flex justify-between text-slate-400">
+              <span>Investiert:</span>
+              <span class="text-slate-200 font-medium" x-text="fmt.formatEur($store.app.position.shares * $store.app.position.buyPrice)"></span>
+            </div>
+            <div class="flex justify-between text-slate-400 mt-1" x-show="$store.app.position.currentPrice > 0">
+              <span>Aktueller Wert:</span>
+              <span class="font-medium" :class="fmt.profitColorClass($store.app.position.currentPrice * $store.app.position.shares - $store.app.position.buyPrice * $store.app.position.shares)"
+                    x-text="fmt.formatEur($store.app.position.currentPrice * $store.app.position.shares)"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Trennlinie -->
+        <hr class="border-surface-700">
+
+        <!-- Steuereinstellungen -->
+        <div class="space-y-3">
+          <h3 class="text-sm font-semibold text-slate-300 flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"/>
+            </svg>
+            Steuereinstellungen
+          </h3>
+
+          <!-- Kirchensteuer -->
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">
+              <span class="tooltip-trigger" tabindex="0">
+                Kirchensteuer
+                <span class="tooltip-content">Nur für Mitglieder einer Kirche (evang./kath.). 8% in Bayern und Baden-Württemberg, 9% in allen anderen Bundesländern.</span>
+              </span>
+            </label>
+            <select x-model="$store.app.settings.bundeslandId"
+                    class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+              <template x-for="bl in TaxEngine.BUNDESLAENDER" :key="bl.id">
+                <option :value="bl.id" x-text="bl.label"></option>
+              </template>
+            </select>
+          </div>
+
+          <!-- Freistellungsauftrag -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">
+                <span class="tooltip-trigger" tabindex="0">
+                  Freibetrag (EUR)
+                  <span class="tooltip-content">Sparerpauschbetrag: 1.000 EUR pro Person, 2.000 EUR für Ehepaare. Kapitalerträge bis zu diesem Betrag sind steuerfrei.</span>
+                </span>
+              </label>
+              <input type="number" min="0" max="2000" step="1"
+                     x-model.number="$store.app.settings.freistellungTotal"
+                     class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Davon verbraucht</label>
+              <input type="number" min="0" step="1"
+                     x-model.number="$store.app.settings.freistellungUsed"
+                     :max="$store.app.settings.freistellungTotal"
+                     class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+            </div>
+          </div>
+
+          <!-- Freibetrag Restanzeige -->
+          <div class="flex items-center justify-between bg-surface-900 rounded-lg px-3 py-2">
+            <span class="text-xs text-slate-400">Freibetrag verbleibend:</span>
+            <span class="text-sm font-medium"
+                  :class="($store.app.settings.freistellungTotal - $store.app.settings.freistellungUsed) > 0 ? 'text-green-400' : 'text-slate-500'"
+                  x-text="fmt.formatEur($store.app.settings.freistellungTotal - $store.app.settings.freistellungUsed)">
+            </span>
+          </div>
+
+          <!-- Effektiver Steuersatz -->
+          <div class="flex items-center justify-between bg-purple-500/10 rounded-lg px-3 py-2">
+            <span class="text-xs text-purple-300">Effektiver Steuersatz:</span>
+            <span class="text-sm font-bold text-purple-300"
+                  x-text="fmt.formatPercent($store.app.computed.effectiveTaxRate * 100)">
+            </span>
+          </div>
+        </div>
+
+        <!-- Trennlinie -->
+        <hr class="border-surface-700">
+
+        <!-- Quick Actions -->
+        <div class="space-y-2">
+          <button @click="resetPosition()"
+                  class="w-full text-sm px-3 py-2 rounded-lg border border-surface-600 hover:bg-surface-700 transition-colors text-slate-400 hover:text-slate-200">
+            Position zurücksetzen
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Mobile Overlay -->
+    <div x-show="$store.app.ui.mobileMenuOpen" x-transition.opacity
+         @click="$store.app.ui.mobileMenuOpen = false"
+         class="fixed inset-0 bg-black/50 z-30 lg:hidden"></div>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <main class="flex-1 overflow-y-auto">
+      <div class="p-4 lg:p-6 max-w-6xl mx-auto space-y-5">
+
+        <!-- KPI Karten -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <!-- Brutto-Gewinn -->
+          <div class="bg-surface-800 rounded-xl border border-surface-700 p-4">
+            <div class="text-xs text-slate-400 mb-1">Brutto-Gewinn</div>
+            <div class="text-xl font-bold"
+                 :class="fmt.profitColorClass($store.app.computed.grossGain)"
+                 x-text="fmt.formatEurSigned($store.app.computed.grossGain)">
+            </div>
+            <div class="text-xs mt-1"
+                 :class="fmt.profitColorClass($store.app.computed.grossGain)"
+                 x-text="$store.app.computed.pnl ? fmt.formatPercentSigned(($store.app.computed.grossGain / ($store.app.position.shares * $store.app.position.buyPrice)) * 100) : '--'">
+            </div>
+          </div>
+
+          <!-- Steuerbelastung -->
+          <div class="bg-surface-800 rounded-xl border border-surface-700 p-4">
+            <div class="text-xs text-slate-400 mb-1">
+              <span class="tooltip-trigger" tabindex="0">
+                Steuerbelastung
+                <span class="tooltip-content">Summe aus Abgeltungssteuer, Solidaritaetszuschlag und ggf. Kirchensteuer</span>
+              </span>
+            </div>
+            <div class="text-xl font-bold text-purple-400"
+                 x-text="$store.app.computed.totalTax > 0 ? '-' + fmt.formatEur($store.app.computed.totalTax) : fmt.formatEur(0)">
+            </div>
+            <div class="text-xs text-purple-400/70 mt-1" x-show="$store.app.computed.pnl">
+              <span x-text="'AbgSt: ' + fmt.formatEur($store.app.computed.pnl?.abgeltungssteuer || 0)"></span>
+            </div>
+          </div>
+
+          <!-- Netto-Gewinn -->
+          <div class="bg-surface-800 rounded-xl border border-surface-700 p-4">
+            <div class="text-xs text-slate-400 mb-1">Netto-Gewinn</div>
+            <div class="text-xl font-bold"
+                 :class="fmt.profitColorClass($store.app.computed.netGain)"
+                 x-text="fmt.formatEurSigned($store.app.computed.netGain)">
+            </div>
+            <div class="text-xs text-slate-500 mt-1">nach Steuern & Gebühren</div>
+          </div>
+
+          <!-- Tax Drag -->
+          <div class="bg-surface-800 rounded-xl border border-surface-700 p-4">
+            <div class="text-xs text-slate-400 mb-1">
+              <span class="tooltip-trigger" tabindex="0">
+                Tax Drag
+                <span class="tooltip-content">Zeigt, wie viel Prozent Deines Bruttogewinns durch Steuern verloren gehen. Je hoeher, desto staerker bremst die Steuer Deine Rendite.</span>
+              </span>
+            </div>
+            <div class="text-xl font-bold"
+                 :class="$store.app.computed.taxDragPercent > 30 ? 'text-red-400' : $store.app.computed.taxDragPercent > 20 ? 'text-amber-400' : 'text-green-400'"
+                 x-text="fmt.formatPercent($store.app.computed.taxDragPercent)">
+            </div>
+            <div class="w-full bg-surface-700 rounded-full h-1.5 mt-2">
+              <div class="h-1.5 rounded-full transition-all duration-300"
+                   :class="$store.app.computed.taxDragPercent > 30 ? 'bg-red-500' : $store.app.computed.taxDragPercent > 20 ? 'bg-amber-500' : 'bg-green-500'"
+                   :style="'width: ' + Math.min(100, $store.app.computed.taxDragPercent) + '%'"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab Navigation -->
+        <div class="flex gap-1 overflow-x-auto pb-1 scrollbar-hide">
+          <template x-for="tab in $store.app.tabs" :key="tab.id">
+            <button @click="$store.app.ui.activeTab = tab.id"
+                    class="px-4 py-2 text-sm rounded-lg whitespace-nowrap transition-colors"
+                    :class="$store.app.ui.activeTab === tab.id ? 'bg-brand/20 text-brand font-medium' : 'text-slate-400 hover:text-slate-200 hover:bg-surface-700'">
+              <span x-text="tab.label"></span>
+            </button>
+          </template>
+        </div>
+
+        <!-- ===== TAB: STEUERLAST ===== -->
+        <div x-show="$store.app.ui.activeTab === 'steuerlast'" x-transition>
+          <div class="bg-surface-800 rounded-xl border border-surface-700 p-5">
+            <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/>
+              </svg>
+              Steuerlast & Tax-Drag Visualisierung
+            </h2>
+
+            <!-- Verkaufskurs Eingabe -->
+            <div class="mb-6" x-show="$store.app.position.buyPrice > 0">
+              <label class="text-sm text-slate-400 mb-2 block">Verkaufskurs simulieren (EUR)</label>
+              <div class="flex items-center gap-3">
+                <input type="number" min="0" step="0.01"
+                       x-model.number="$store.app.position.currentPrice"
+                       placeholder="z.B. 65.00"
+                       class="w-40 bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+                <span class="text-xs text-slate-500">Kaufkurs: <span class="text-blue-400" x-text="fmt.formatEur($store.app.position.buyPrice)"></span></span>
+              </div>
+            </div>
+
+            <!-- Tax Drag Chart Container -->
+            <div id="taxDragChart" class="w-full" style="min-height: 350px;"></div>
+
+            <!-- Detail-Aufschluesselung -->
+            <div class="mt-4 grid grid-cols-2 lg:grid-cols-3 gap-3" x-show="$store.app.computed.pnl">
+              <div class="bg-surface-900 rounded-lg p-3">
+                <div class="text-xs text-slate-400">Bruttoerlös</div>
+                <div class="text-sm font-medium text-slate-200" x-text="fmt.formatEur($store.app.computed.pnl?.grossRevenue || 0)"></div>
+              </div>
+              <div class="bg-surface-900 rounded-lg p-3">
+                <div class="text-xs text-slate-400">Gesamtkosten</div>
+                <div class="text-sm font-medium text-slate-200" x-text="fmt.formatEur($store.app.computed.pnl?.totalCost || 0)"></div>
+              </div>
+              <div class="bg-surface-900 rounded-lg p-3">
+                <div class="text-xs text-slate-400">Freibetrag genutzt</div>
+                <div class="text-sm font-medium text-green-400" x-text="fmt.formatEur($store.app.computed.pnl?.freistellungUsed || 0)"></div>
+              </div>
+              <div class="bg-surface-900 rounded-lg p-3">
+                <div class="text-xs text-slate-400">Abgeltungssteuer</div>
+                <div class="text-sm font-medium text-purple-400" x-text="fmt.formatEur($store.app.computed.pnl?.abgeltungssteuer || 0)"></div>
+              </div>
+              <div class="bg-surface-900 rounded-lg p-3">
+                <div class="text-xs text-slate-400">Solidaritaetszuschlag</div>
+                <div class="text-sm font-medium text-purple-400" x-text="fmt.formatEur($store.app.computed.pnl?.solidaritaetszuschlag || 0)"></div>
+              </div>
+              <div class="bg-surface-900 rounded-lg p-3">
+                <div class="text-xs text-slate-400">Kirchensteuer</div>
+                <div class="text-sm font-medium text-purple-400" x-text="fmt.formatEur($store.app.computed.pnl?.kirchensteuer || 0)"></div>
+              </div>
+            </div>
+
+            <!-- Dynamische Zusammenfassung -->
+            <div x-show="$store.app.computed.pnl" class="mt-4 bg-surface-900 rounded-xl p-4 border border-surface-700">
+              <h3 class="text-sm font-semibold text-brand mb-2 flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                Was bedeutet das für dich?
+              </h3>
+              <div class="text-sm text-slate-300 space-y-2" x-data="{
+                get summary() {
+                  const c = $store.app.computed;
+                  const p = $store.app.position;
+                  const pnl = c.pnl;
+                  if (!pnl) return '';
+                  const lines = [];
+
+                  if (pnl.grossGain <= 0) {
+                    lines.push('Bei einem Verkaufskurs von ' + fmt.formatEur(p.currentPrice) + ' machst du einen Verlust von ' + fmt.formatEur(Math.abs(pnl.grossGain)) + '. Auf Verluste fällt keine Steuer an.');
+                    lines.push('Tipp: Verluste können mit zukünftigen Gewinnen verrechnet werden (Verlustverrechnungstopf).');
+                  } else {
+                    lines.push('Bei einem Verkauf zu ' + fmt.formatEur(p.currentPrice) + ' erzielst du einen Bruttogewinn von ' + fmt.formatEur(pnl.grossGain) + '.');
+
+                    if (pnl.freistellungUsed > 0) {
+                      lines.push('Davon sind ' + fmt.formatEur(pnl.freistellungUsed) + ' durch deinen Freibetrag steuerfrei.');
+                    }
+
+                    if (pnl.totalTax > 0) {
+                      lines.push('Steuerbelastung: ' + fmt.formatEur(pnl.totalTax) + ' (' + fmt.formatPercent(c.taxDragPercent) + ' deines Gewinns). Es bleiben dir netto ' + fmt.formatEur(pnl.netProfit) + '.');
+                    } else {
+                      lines.push('Dein Gewinn liegt vollständig im Freibetrag — keine Steuer fällig! Du behältst ' + fmt.formatEur(pnl.netProfit) + ' netto.');
+                    }
+
+                    if (c.taxDragPercent > 40) {
+                      lines.push('⚠ Achtung: Der Tax Drag ist sehr hoch. Fast die Hälfte deines Gewinns geht an den Staat. Überlege, ob sich ein Verkauf bei diesem Kurs wirklich lohnt.');
+                    } else if (c.taxDragPercent > 25) {
+                      lines.push('Der Steueranteil liegt im normalen Bereich der Abgeltungssteuer (ca. 26%). Das ist bei Gewinnen oberhalb des Freibetrags üblich.');
+                    }
+                  }
+
+                  const totalFees = p.brokerFee * 2;
+                  if (pnl.grossGain > 0 && totalFees / pnl.grossGain > 0.1) {
+                    lines.push('Hinweis: Die Handelsgebühren (' + fmt.formatEur(totalFees) + ') machen ' + fmt.formatPercent((totalFees / pnl.grossGain) * 100) + ' deines Gewinns aus — bei kleinen Gewinnen ein spürbarer Kostenfaktor.');
+                  }
+
+                  return lines;
+                }
+              }">
+                <template x-for="(line, i) in summary" :key="i">
+                  <p x-text="line"></p>
+                </template>
+              </div>
+            </div>
+
+            <!-- Hinweis wenn keine Daten -->
+            <div x-show="!$store.app.position.shares || !$store.app.position.buyPrice"
+                 class="text-center py-12 text-slate-500">
+              <svg class="w-12 h-12 mx-auto mb-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <p>Gib links deine Positionsdaten ein, um die Analyse zu starten.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== TAB: WIEDEREINSTIEG (Break-Even Rebuy) ===== -->
+        <div x-show="$store.app.ui.activeTab === 'rebuy'" x-transition>
+          <div class="bg-surface-800 rounded-xl border border-surface-700 p-5">
+            <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+              Break-Even Wiedereinstieg
+            </h2>
+
+            <p class="text-sm text-slate-400 mb-4">
+              Berechnet den Kurs, auf den die Aktie fallen muss, damit Du nach dem Verkauf (inkl. Steuern und Gebühren) dieselbe Anzahl Aktien zurückkaufen kannst.
+            </p>
+
+            <template x-if="$store.app.computed.breakEvenRebuy">
+              <div class="space-y-4">
+                <!-- Haupt-Ergebnis -->
+                <div class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-5">
+                  <div class="text-sm text-amber-300 mb-1">Break-Even Rückkaufkurs</div>
+                  <div class="text-3xl font-bold text-amber-400" x-text="fmt.formatEur($store.app.computed.breakEvenRebuy.breakEvenRebuyPrice)"></div>
+                  <div class="text-sm text-amber-300/70 mt-1">
+                    Der Kurs muss um mindestens
+                    <span class="font-medium text-amber-300" x-text="fmt.formatPercent($store.app.computed.breakEvenRebuy.requiredDropPercent)"></span>
+                    fallen (<span x-text="fmt.formatEur($store.app.computed.breakEvenRebuy.requiredDropEur)"></span>)
+                  </div>
+                </div>
+
+                <!-- Aufschluesselung -->
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="bg-surface-900 rounded-lg p-3">
+                    <div class="text-xs text-slate-400">Netto-Erloes nach Verkauf</div>
+                    <div class="text-sm font-medium text-slate-200" x-text="fmt.formatEur($store.app.computed.breakEvenRebuy.netProceeds)"></div>
+                  </div>
+                  <div class="bg-surface-900 rounded-lg p-3">
+                    <div class="text-xs text-slate-400">Verfügbar für Rückkauf</div>
+                    <div class="text-sm font-medium text-slate-200" x-text="fmt.formatEur($store.app.computed.breakEvenRebuy.availableForRebuy)"></div>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <!-- Szenario-Tabelle: Was-wäre-wenn für verschiedene Verkaufskurse -->
+            <div x-show="$store.app.position.shares > 0 && $store.app.position.buyPrice > 0" class="mt-6">
+              <h3 class="text-sm font-semibold text-slate-300 mb-3">Szenarien: Rebuy bei verschiedenen Kursgewinnen</h3>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead>
+                    <tr class="text-xs text-slate-400 border-b border-surface-700">
+                      <th class="text-left py-2 px-2">Kursgewinn</th>
+                      <th class="text-right py-2 px-2">Verkauf bei</th>
+                      <th class="text-right py-2 px-2">Steuer</th>
+                      <th class="text-right py-2 px-2">Rebuy-Kurs</th>
+                      <th class="text-right py-2 px-2">Benötigter Rückgang</th>
+                    </tr>
+                  </thead>
+                  <tbody x-data="{
+                    scenarios() {
+                      const p = $store.app.position;
+                      const s = $store.app.settings;
+                      const bl = TaxEngine.BUNDESLAENDER.find(b => b.id === s.bundeslandId);
+                      const kist = bl ? bl.rate : 0;
+                      const frei = Math.max(0, s.freistellungTotal - s.freistellungUsed);
+                      const pcts = [2, 5, 8, 10, 15, 20, 30, 50];
+                      return pcts.map(pct => {
+                        const sell = Math.round((p.buyPrice * (1 + pct/100)) * 100) / 100;
+                        const r = TaxEngine.calculateBreakEvenRebuy(p.buyPrice, sell, p.shares, p.brokerFee, p.brokerFee, frei, kist);
+                        return { pct, sell, ...r };
+                      });
+                    }
+                  }">
+                    <template x-for="(s, i) in scenarios()" :key="i">
+                      <tr class="border-b border-surface-700/50 hover:bg-surface-700/30">
+                        <td class="py-2 px-2 text-brand font-medium" x-text="'+' + s.pct + '%'"></td>
+                        <td class="py-2 px-2 text-right text-slate-200" x-text="fmt.formatEur(s.sell)"></td>
+                        <td class="py-2 px-2 text-right text-purple-400" x-text="fmt.formatEur(s.pnl?.totalTax || 0)"></td>
+                        <td class="py-2 px-2 text-right text-amber-400 font-medium" x-text="fmt.formatEur(s.breakEvenRebuyPrice)"></td>
+                        <td class="py-2 px-2 text-right"
+                            :class="s.requiredDropPercent > 8 ? 'text-red-400' : s.requiredDropPercent > 3 ? 'text-amber-400' : 'text-green-400'"
+                            x-text="fmt.formatPercent(s.requiredDropPercent)"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+              <p class="text-xs text-slate-500 mt-2">
+                Der Rebuy-Kurs zeigt, auf welchen Preis die Aktie fallen muss, damit Du dieselbe Stückzahl nach Steuern und Gebühren zurückkaufen kannst.
+              </p>
+            </div>
+
+            <div x-show="!$store.app.computed.breakEvenRebuy && ($store.app.position.currentPrice <= $store.app.position.buyPrice || !$store.app.position.shares || !$store.app.position.buyPrice)"
+                 class="text-center py-8 text-slate-500">
+              <p x-show="$store.app.position.currentPrice > 0 && $store.app.position.currentPrice <= $store.app.position.buyPrice">
+                Der aktuelle Kurs liegt unter dem Kaufkurs. Die Szenario-Tabelle oben zeigt trotzdem die Break-Even-Werte für verschiedene Kursgewinne.
+              </p>
+              <p x-show="!$store.app.position.shares || !$store.app.position.buyPrice">
+                Gib Deine Positionsdaten ein, um die Analyse zu starten.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== TAB: ZIELKURS ===== -->
+        <div x-show="$store.app.ui.activeTab === 'zielkurs'" x-transition>
+          <div class="bg-surface-800 rounded-xl border border-surface-700 p-5">
+            <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"/>
+              </svg>
+              Netto-Profit Zielkurs
+            </h2>
+
+            <p class="text-sm text-slate-400 mb-4">
+              Gib Deinen gewünschten Netto-Gewinn ein und erfahre, welchen Verkaufskurs Du dafür brauchst.
+            </p>
+
+            <!-- Wunsch-Nettoprofit Eingabe -->
+            <div class="mb-4">
+              <label class="block text-sm text-slate-400 mb-1.5">Gewuenschter Netto-Gewinn (EUR)</label>
+              <input type="number" min="0" step="10"
+                     x-model.number="$store.app.position.desiredNetProfit"
+                     placeholder="z.B. 500"
+                     class="w-full max-w-xs bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500">
+            </div>
+
+            <template x-if="$store.app.computed.targetCalc && $store.app.computed.targetCalc.valid">
+              <div class="space-y-4">
+                <div class="bg-green-500/10 border border-green-500/20 rounded-xl p-5"
+                     x-data="{
+                       get target() { return $store.app.computed.targetCalc.targetSellPrice },
+                       get current() { return $store.app.position.currentPrice },
+                       get buy() { return $store.app.position.buyPrice },
+                       get fromCurrentPct() { return this.current > 0 ? ((this.target - this.current) / this.current) * 100 : 0 },
+                       get fromBuyPct() { return this.buy > 0 ? ((this.target - this.buy) / this.buy) * 100 : 0 }
+                     }">
+                  <div class="text-sm text-green-300 mb-1">Benötigter Verkaufskurs</div>
+                  <div class="text-3xl font-bold text-green-400" x-text="fmt.formatEur(target)"></div>
+                  <div class="text-sm text-green-300/70 mt-2 space-y-1">
+                    <div x-show="current > 0 && current !== buy">
+                      Vom aktuellen Kurs (<span x-text="fmt.formatEur(current)"></span>):
+                      <span class="font-medium text-green-300" x-text="fromCurrentPct >= 0 ? '+' + fromCurrentPct.toFixed(1) + '%' : fromCurrentPct.toFixed(1) + '%'"></span>
+                      <span x-text="'(' + fmt.formatEur(target - current) + ')'"></span>
+                      <span x-show="fromCurrentPct <= 0" class="text-green-400 font-medium"> — Ziel bereits erreicht!</span>
+                    </div>
+                    <div class="text-xs text-green-300/50">
+                      Vom Kaufkurs (<span x-text="fmt.formatEur(buy)"></span>):
+                      <span x-text="'+' + fromBuyPct.toFixed(1) + '%'"></span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Gegenprobe -->
+                <div class="bg-surface-900 rounded-lg p-3">
+                  <div class="text-xs text-slate-400 mb-2">Gegenprobe bei diesem Verkaufskurs:</div>
+                  <div class="grid grid-cols-3 gap-3 text-sm">
+                    <div>
+                      <span class="text-slate-400">Brutto:</span>
+                      <span class="text-slate-200 ml-1" x-text="fmt.formatEur($store.app.computed.targetCalc.verification?.grossGain || 0)"></span>
+                    </div>
+                    <div>
+                      <span class="text-slate-400">Steuer:</span>
+                      <span class="text-purple-400 ml-1" x-text="fmt.formatEur($store.app.computed.targetCalc.verification?.totalTax || 0)"></span>
+                    </div>
+                    <div>
+                      <span class="text-slate-400">Netto:</span>
+                      <span class="text-green-400 ml-1 font-medium" x-text="fmt.formatEur($store.app.computed.targetCalc.verification?.netProfit || 0)"></span>
+                    </div>
+                  </div>
+                </div>
+                <!-- Stop-Loss Empfehlung -->
+                <!-- Stop-Loss Empfehlung -->
+                <div class="bg-red-500/5 border border-red-500/20 rounded-xl p-4 mt-4"
+                     x-data="{
+                       get target() { return $store.app.computed.targetCalc.targetSellPrice },
+                       get buy() { return $store.app.position.buyPrice },
+                       get current() { return $store.app.position.currentPrice || this.buy },
+                       get shares() { return $store.app.position.shares },
+                       get fee() { return $store.app.position.brokerFee },
+                       get upside() { return this.target - this.current },
+                       get slTight() { return Math.round((this.current - this.upside / 3) * 100) / 100 },
+                       get slMedium() { return Math.round((this.current - this.upside / 2) * 100) / 100 },
+                       get slWide() { return Math.round((this.current - this.upside) * 100) / 100 },
+                       slSlider: 0,
+                       initSlider() { this.slSlider = this.slMedium },
+                       nettoAt(sellPrice) {
+                         const s = $store.app.settings;
+                         const bl = TaxEngine.BUNDESLAENDER.find(b => b.id === s.bundeslandId);
+                         const kist = bl ? bl.rate : 0;
+                         const frei = Math.max(0, s.freistellungTotal - s.freistellungUsed);
+                         return TaxEngine.calculateNetProfit(this.buy, sellPrice, this.shares, this.fee, this.fee, frei, kist).netProfit;
+                       },
+                       dropPct(sl) { return this.current > 0 ? ((this.current - sl) / this.current * 100) : 0 }
+                     }"
+                     x-init="$watch('target', () => initSlider()); initSlider()">
+                  <div class="text-sm font-medium text-red-400 mb-2">Stop-Loss Empfehlung</div>
+                  <p class="text-xs text-slate-400 mb-3">
+                    Der Stop-Loss wird vom <strong class="text-white">aktuellen Kurs</strong> (<span x-text="fmt.formatEur(current)"></span>) aus berechnet.
+                    Er begrenzt deinen Verlust, falls der Kurs fällt. Die Netto-Werte zeigen, was du nach Steuern und Gebühren behältst, wenn die Aktie beim Stop-Loss verkauft wird.
+                  </p>
+
+                  <!-- Schnellauswahl -->
+                  <div class="grid grid-cols-3 gap-2 mb-4">
+                    <div class="bg-surface-900 rounded-lg p-2.5 text-center cursor-pointer hover:bg-surface-800 transition-colors"
+                         @click="$store.app.position.stopLoss = slTight; slSlider = slTight">
+                      <div class="text-xs text-green-400 font-medium">Eng (1:3)</div>
+                      <div class="text-sm font-bold text-slate-200" x-text="fmt.formatEur(slTight)"></div>
+                      <div class="text-xs text-slate-500" x-text="'−' + dropPct(slTight).toFixed(1) + '% vom Kurs'"></div>
+                      <div class="text-xs mt-1">
+                        <span class="text-slate-500">Bei SL: </span>
+                        <span :class="nettoAt(slTight) >= 0 ? 'text-green-400' : 'text-red-400'" x-text="fmt.formatEurSigned(nettoAt(slTight))"></span>
+                      </div>
+                    </div>
+                    <div class="bg-surface-900 rounded-lg p-2.5 text-center cursor-pointer hover:bg-surface-800 transition-colors border border-amber-500/30"
+                         @click="$store.app.position.stopLoss = slMedium; slSlider = slMedium">
+                      <div class="text-xs text-amber-400 font-medium">Empfohlen (1:2)</div>
+                      <div class="text-sm font-bold text-slate-200" x-text="fmt.formatEur(slMedium)"></div>
+                      <div class="text-xs text-slate-500" x-text="'−' + dropPct(slMedium).toFixed(1) + '% vom Kurs'"></div>
+                      <div class="text-xs mt-1">
+                        <span class="text-slate-500">Bei SL: </span>
+                        <span :class="nettoAt(slMedium) >= 0 ? 'text-green-400' : 'text-red-400'" x-text="fmt.formatEurSigned(nettoAt(slMedium))"></span>
+                      </div>
+                    </div>
+                    <div class="bg-surface-900 rounded-lg p-2.5 text-center cursor-pointer hover:bg-surface-800 transition-colors"
+                         @click="$store.app.position.stopLoss = slWide; slSlider = slWide">
+                      <div class="text-xs text-red-400 font-medium">Weit (1:1)</div>
+                      <div class="text-sm font-bold text-slate-200" x-text="fmt.formatEur(slWide)"></div>
+                      <div class="text-xs text-slate-500" x-text="'−' + dropPct(slWide).toFixed(1) + '% vom Kurs'"></div>
+                      <div class="text-xs mt-1">
+                        <span class="text-slate-500">Bei SL: </span>
+                        <span :class="nettoAt(slWide) >= 0 ? 'text-green-400' : 'text-red-400'" x-text="fmt.formatEurSigned(nettoAt(slWide))"></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Feineinstellung Slider -->
+                  <div class="bg-surface-900 rounded-lg p-4">
+                    <div class="text-xs text-slate-400 mb-2">Feineinstellung: Stop-Loss-Kurs wählen</div>
+                    <div class="text-xs text-slate-500 mb-3">Ziehe den Regler, um den Stop-Loss anzupassen. Du siehst live, was du netto behältst wenn der Stop-Loss greift.</div>
+                    <input type="range"
+                           :min="Math.max(Math.round(slWide * 100) / 100, 0.01)"
+                           :max="Math.round((current - 0.01) * 100) / 100"
+                           :step="0.01"
+                           x-model.number="slSlider"
+                           @input="$store.app.position.stopLoss = slSlider"
+                           class="w-full accent-red-500">
+                    <div class="grid grid-cols-3 gap-2 text-xs mt-3">
+                      <div class="bg-surface-800 rounded-lg p-2">
+                        <span class="text-slate-400 block">Stop-Loss Kurs</span>
+                        <span class="text-white font-medium text-sm" x-text="fmt.formatEur(slSlider)"></span>
+                        <span class="text-slate-500 block" x-text="'−' + dropPct(slSlider).toFixed(1) + '% vom Kurs'"></span>
+                      </div>
+                      <div class="bg-surface-800 rounded-lg p-2">
+                        <span class="text-slate-400 block">Netto wenn SL greift</span>
+                        <span class="font-medium text-sm" :class="nettoAt(slSlider) >= 0 ? 'text-green-400' : 'text-red-400'" x-text="fmt.formatEurSigned(nettoAt(slSlider))"></span>
+                        <span class="text-slate-500 block" x-text="nettoAt(slSlider) >= 0 ? 'Du machst noch Gewinn' : 'Du machst Verlust'"></span>
+                      </div>
+                      <div class="bg-surface-800 rounded-lg p-2">
+                        <span class="text-slate-400 block">Netto wenn Ziel erreicht</span>
+                        <span class="font-medium text-sm text-green-400" x-text="fmt.formatEurSigned(nettoAt(target))"></span>
+                        <span class="text-slate-500 block">Dein Wunschgewinn</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </template>
+
+            <!-- Rendite-Tabelle -->
+            <div x-show="$store.app.position.shares > 0 && $store.app.position.buyPrice > 0" class="mt-6">
+              <h3 class="text-sm font-semibold text-slate-300 mb-3">Schnellauswahl: Netto-Rendite Ziele</h3>
+              <div class="grid grid-cols-2 lg:grid-cols-3 gap-2">
+                <template x-for="pct in [5, 10, 15, 20, 30, 50]" :key="pct">
+                  <div class="bg-surface-900 rounded-lg p-3 cursor-pointer hover:bg-surface-700/50 transition-colors"
+                       @click="$store.app.position.desiredNetProfit = Math.round($store.app.position.shares * $store.app.position.buyPrice * pct / 100)"
+                       x-data="{
+                         get desiredNet() { return Math.round($store.app.position.shares * $store.app.position.buyPrice * pct / 100) },
+                         get target() {
+                           const p = $store.app.position;
+                           const s = $store.app.settings;
+                           const bl = TaxEngine.BUNDESLAENDER.find(b => b.id === s.bundeslandId);
+                           const kist = bl ? bl.rate : 0;
+                           const frei = Math.max(0, s.freistellungTotal - s.freistellungUsed);
+                           return TaxEngine.calculateTargetSellPrice(p.buyPrice, p.shares, this.desiredNet, p.brokerFee, p.brokerFee, frei, kist);
+                         }
+                       }">
+                    <div class="text-xs text-slate-400" x-text="pct + '% Netto-Rendite'"></div>
+                    <div class="text-sm font-medium text-green-400" x-text="'Ziel: ' + fmt.formatEur(target.targetSellPrice)"></div>
+                    <div class="text-xs text-slate-500" x-text="'= ' + fmt.formatEur(desiredNet) + ' Netto'"></div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <div x-show="!$store.app.position.shares || !$store.app.position.buyPrice"
+                 class="text-center py-8 text-slate-500">
+              <p>Gib Positionsdaten ein, um die Zielkurs-Berechnung zu starten.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== TAB: KURSLEVEL ===== -->
+        <div x-show="$store.app.ui.activeTab === 'kurschart'" x-transition>
+          <div class="bg-surface-800 rounded-xl border border-surface-700 p-5">
+            <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+              </svg>
+              Kurslevel Dashboard
+            </h2>
+
+            <p class="text-sm text-slate-400 mb-4">
+              Setze Stop-Loss und Zielkurs um das Risk/Reward-Verhältnis zu sehen.
+            </p>
+
+            <!-- Kurs-Chart -->
+            <div class="mb-4">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-sm text-slate-400">Kursverlauf (6 Monate)</span>
+                <div class="flex items-center gap-3" x-show="$store.app.market.historicalData.length > 0">
+                  <!-- Toggle Levels im Chart -->
+                  <label class="flex items-center gap-1.5 cursor-pointer select-none">
+                    <span class="text-xs text-slate-400">Levels</span>
+                    <button @click="$store.app.ui.showLevels = !$store.app.ui.showLevels; setTimeout(() => updatePriceLevelChart(), 50)"
+                            class="relative w-8 h-4 rounded-full transition-colors"
+                            :class="$store.app.ui.showLevels ? 'bg-brand' : 'bg-surface-600'">
+                      <span class="absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform duration-200"
+                            :class="$store.app.ui.showLevels ? 'translate-x-4' : ''"></span>
+                    </button>
+                  </label>
+                  <!-- Refresh -->
+                  <button @click="fetchHistorical($store.app.position.ticker)"
+                          :disabled="$store.app.market.loading"
+                          class="text-xs p-1 rounded-md text-slate-400 hover:text-slate-200" title="Aktualisieren">
+                    <svg class="w-4 h-4" :class="$store.app.market.loading ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Ladeanimation: x-show statt x-if für zuverlässiges Rendering -->
+              <div x-show="$store.app.market.loading" style="display: none;"
+                   class="bg-surface-900 rounded-lg p-12 text-center">
+                <svg class="w-10 h-10 mx-auto mb-3 text-brand animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-20"/>
+                  <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" class="opacity-75"/>
+                </svg>
+                <p class="text-slate-400 text-sm">Kursdaten werden geladen...</p>
+                <p class="text-slate-500 text-xs mt-1">Historische Kurse der letzten 6 Monate</p>
+              </div>
+
+              <!-- Chart (versteckt wenn Loading) -->
+              <div x-show="!$store.app.market.loading && $store.app.market.historicalData.length > 0" style="display: none;">
+                <div id="priceLevelChart" style="min-height: 400px;"></div>
+              </div>
+
+              <!-- Kein Ticker -->
+              <div x-show="!$store.app.market.loading && !$store.app.position.ticker"
+                   class="bg-surface-900 rounded-lg p-8 text-center text-slate-500 text-sm">
+                Wähle zuerst eine Aktie aus, um den Kursverlauf zu sehen.
+              </div>
+              <!-- Ticker, aber keine Daten und nicht am Laden -->
+              <div x-show="!$store.app.market.loading && $store.app.market.historicalData.length === 0 && $store.app.position.ticker"
+                   style="display: none;"
+                   class="bg-surface-900 rounded-lg p-8 text-center text-slate-500 text-sm">
+                <button @click="fetchHistorical($store.app.position.ticker)"
+                        class="text-brand hover:text-brand-dark underline">Kursdaten laden</button>
+                für den Kursverlauf.
+              </div>
+            </div>
+
+            <!-- Stop-Loss & Target Eingabe -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+              <div>
+                <label class="block text-xs text-slate-400 mb-1">
+                  <span class="tooltip-trigger" tabindex="0">
+                    Stop-Loss (EUR)
+                    <span class="tooltip-content">Der Kurs, bei dem automatisch verkauft wird, um Verluste zu begrenzen.</span>
+                  </span>
+                </label>
+                <input type="number" min="0" step="0.01"
+                       x-model.number="$store.app.position.stopLoss"
+                       class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500">
+              </div>
+              <div>
+                <label class="block text-xs text-slate-400 mb-1">Zielkurs (EUR)</label>
+                <input type="number" min="0" step="0.01"
+                       x-model.number="$store.app.position.targetPrice"
+                       class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500">
+                <!-- Automatisch berechneten Zielkurs übernehmen -->
+                <template x-if="$store.app.computed.targetCalc && $store.app.computed.targetCalc.valid && $store.app.position.targetPrice !== $store.app.computed.targetCalc.targetSellPrice">
+                  <button @click="$store.app.position.targetPrice = $store.app.computed.targetCalc.targetSellPrice"
+                          class="mt-1 text-xs text-green-400 hover:text-green-300 flex items-center gap-1">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    <span x-text="fmt.formatEur($store.app.computed.targetCalc.targetSellPrice) + ' übernehmen (für ' + fmt.formatEur($store.app.position.desiredNetProfit) + ' Netto-Gewinn)'"></span>
+                  </button>
+                </template>
+              </div>
+              <div>
+                <label class="block text-xs text-slate-400 mb-1">Kaufkurs</label>
+                <div class="bg-surface-900 rounded-lg px-3 py-2 text-sm text-blue-400 border border-surface-600" x-text="fmt.formatEur($store.app.position.buyPrice)"></div>
+              </div>
+              <div>
+                <label class="block text-xs text-slate-400 mb-1">Aktueller Kurs</label>
+                <div class="bg-surface-900 rounded-lg px-3 py-2 text-sm text-white border border-surface-600" x-text="fmt.formatEur($store.app.position.currentPrice)"></div>
+              </div>
+            </div>
+
+            <!-- Anleitung -->
+            <div class="bg-blue-500/5 border border-blue-500/20 rounded-lg p-3 mb-4 text-xs text-blue-300">
+              <strong>So nutzt du diesen Tab:</strong> Gib oben deinen Stop-Loss (Verlustgrenze) und Zielkurs (Gewinnziel) ein. Die Übersicht zeigt dir alle wichtigen Kursniveaus auf einen Blick und berechnet dein Chancen-Risiko-Verhältnis.
+            </div>
+
+            <!-- Vertikale Kurs-Skala -->
+            <div class="bg-surface-900 rounded-xl p-5 mb-4"
+                 x-show="$store.app.position.buyPrice > 0"
+                 x-data="{
+                   levels() {
+                     const p = $store.app.position;
+                     const c = $store.app.computed;
+                     return [
+                       p.targetPrice > 0 ? { label: 'Zielkurs', price: p.targetPrice, color: 'border-green-500', bg: 'bg-green-500/10', text: 'text-green-400', icon: '▲', desc: 'Dein Gewinnziel' } : null,
+                       p.currentPrice > 0 ? { label: 'Aktueller Kurs', price: p.currentPrice, color: 'border-white', bg: 'bg-white/5', text: 'text-white', icon: '●', desc: 'Aktueller Marktkurs' } : null,
+                       c.breakEvenSell > 0 ? { label: 'Break-Even', price: c.breakEvenSell, color: 'border-slate-400', bg: 'bg-slate-400/5', text: 'text-slate-400', icon: '═', desc: 'Ab hier Gewinn (nach Gebühren)' } : null,
+                       { label: 'Kaufkurs', price: p.buyPrice, color: 'border-blue-500', bg: 'bg-blue-500/10', text: 'text-blue-400', icon: '◆', desc: 'Dein Einstiegspreis' },
+                       c.breakEvenRebuy ? { label: 'Rebuy-Kurs', price: c.breakEvenRebuy.breakEvenRebuyPrice, color: 'border-amber-500', bg: 'bg-amber-500/10', text: 'text-amber-400', icon: '▼', desc: 'Nötig für gleiche Stückzahl' } : null,
+                       p.stopLoss > 0 ? { label: 'Stop-Loss', price: p.stopLoss, color: 'border-red-500', bg: 'bg-red-500/10', text: 'text-red-400', icon: '✕', desc: 'Automatischer Verkauf bei Verlust' } : null,
+                     ].filter(Boolean).sort((a, b) => b.price - a.price);
+                   }
+                 }">
+              <div class="text-sm text-slate-400 mb-3">Kursniveaus (höchster → niedrigster)</div>
+              <div class="space-y-0">
+                <template x-for="(level, i) in levels()" :key="i">
+                  <div class="flex items-stretch">
+                    <!-- Verbindungslinie -->
+                    <div class="w-8 flex flex-col items-center">
+                      <div class="w-3 h-3 rounded-full flex-shrink-0 border-2" :class="level.color"></div>
+                      <div class="w-0.5 flex-1 bg-surface-700" x-show="i < levels().length - 1"></div>
+                    </div>
+                    <!-- Inhalt -->
+                    <div class="flex-1 pb-3 pl-3 flex items-start justify-between rounded-lg -mt-1 py-2 px-3" :class="level.bg">
+                      <div>
+                        <div class="text-sm font-medium" :class="level.text" x-text="level.label"></div>
+                        <div class="text-xs text-slate-500" x-text="level.desc"></div>
+                      </div>
+                      <div class="text-sm font-bold tabular-nums" :class="level.text" x-text="fmt.formatEur(level.price)"></div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+
+              <!-- Abstände zwischen Levels -->
+              <div class="mt-4 grid grid-cols-2 gap-2 text-xs" x-show="$store.app.position.currentPrice > 0">
+                <div class="bg-surface-800 rounded-lg p-2" x-show="$store.app.position.stopLoss > 0">
+                  <span class="text-red-400">Risiko:</span>
+                  <span class="text-slate-300" x-text="fmt.formatEur($store.app.position.currentPrice - $store.app.position.stopLoss)"></span>
+                  <span class="text-slate-500" x-text="'(' + fmt.formatPercent((($store.app.position.currentPrice - $store.app.position.stopLoss) / $store.app.position.currentPrice) * 100) + ')'"></span>
+                </div>
+                <div class="bg-surface-800 rounded-lg p-2" x-show="$store.app.position.targetPrice > 0">
+                  <span class="text-green-400">Chance:</span>
+                  <span class="text-slate-300" x-text="fmt.formatEur($store.app.position.targetPrice - $store.app.position.currentPrice)"></span>
+                  <span class="text-slate-500" x-text="'(' + fmt.formatPercent((($store.app.position.targetPrice - $store.app.position.currentPrice) / $store.app.position.currentPrice) * 100) + ')'"></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Risk/Reward Ratio — berechnet vom AKTUELLEN Kurs -->
+            <div x-show="$store.app.position.stopLoss > 0 && $store.app.position.targetPrice > 0 && $store.app.position.currentPrice > 0"
+                 x-data="{
+                   get current() { return $store.app.position.currentPrice },
+                   get risk() { return Math.max(0, this.current - $store.app.position.stopLoss) },
+                   get reward() { return Math.max(0, $store.app.position.targetPrice - this.current) },
+                   get riskEur() { return this.risk * $store.app.position.shares },
+                   get rewardEur() { return this.reward * $store.app.position.shares },
+                   get ratio() { return this.risk > 0 ? this.reward / this.risk : (this.reward > 0 ? 99 : 0) },
+                   get ratingColor() { return this.ratio >= 3 ? 'text-green-400' : this.ratio >= 2 ? 'text-green-400' : this.ratio >= 1 ? 'text-amber-400' : 'text-red-400' },
+                   get ratingBg() { return this.ratio >= 2 ? 'bg-green-500/10 border-green-500/20' : this.ratio >= 1 ? 'bg-amber-500/10 border-amber-500/20' : 'bg-red-500/10 border-red-500/20' }
+                 }">
+              <div class="rounded-xl border p-4" :class="ratingBg">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <span class="text-sm text-slate-400">Chancen-Risiko-Verhältnis:</span>
+                    <span class="text-2xl font-bold ml-2" :class="ratingColor"
+                          x-text="'1 : ' + (ratio > 10 ? '∞' : ratio.toFixed(1))"></span>
+                  </div>
+                  <div class="text-right text-sm">
+                    <div class="text-slate-500 text-xs mb-1">Vom aktuellen Kurs (<span x-text="fmt.formatEur(current)"></span>)</div>
+                    <div class="text-red-400">Risiko bis SL: <span x-text="fmt.formatEur(riskEur)"></span> <span class="text-slate-500" x-text="'(−' + (current > 0 ? (risk / current * 100).toFixed(1) : 0) + '%)'"></span></div>
+                    <div class="text-green-400">Chance bis Ziel: <span x-text="fmt.formatEur(rewardEur)"></span> <span class="text-slate-500" x-text="'(+' + (current > 0 ? (reward / current * 100).toFixed(1) : 0) + '%)'"></span></div>
+                  </div>
+                </div>
+                <div class="text-xs mt-2 text-slate-400">
+                  <span :class="ratingColor" x-text="ratio >= 3
+                    ? '✓ Sehr gut: Für jeden Euro Risiko hast du ' + ratio.toFixed(1) + ' € Gewinnchance. Selbst wenn nur jeder 4. Trade klappt, bist du profitabel.'
+                    : ratio >= 2
+                    ? '✓ Gut: Für jeden Euro Risiko hast du ' + ratio.toFixed(1) + ' € Gewinnchance. Du bist profitabel, wenn jeder 3. Trade aufgeht.'
+                    : ratio >= 1
+                    ? '⚠ Verbesserbar: Für jeden Euro Risiko hast du nur ' + ratio.toFixed(1) + ' € Gewinnchance. Du brauchst eine hohe Trefferquote, um profitabel zu sein.'
+                    : '✕ Ungünstig: Dein möglicher Verlust ist größer als dein möglicher Gewinn. So verlierst du langfristig Geld.'"></span>
+                </div>
+                <div class="text-xs mt-1 text-slate-500" x-show="ratio < 2 && ratio > 0">
+                  Tipp: Erhöhe den Zielkurs oder setze den Stop-Loss näher am aktuellen Kurs, um ein Verhältnis von mindestens 1:2 zu erreichen.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== TAB: VOLATILITAET ===== -->
+        <div x-show="$store.app.ui.activeTab === 'volatilitaet'" x-transition>
+          <div class="bg-surface-800 rounded-xl border border-surface-700 p-5">
+            <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+              </svg>
+              Volatilitaets-Check (Realitaetscheck)
+            </h2>
+
+            <p class="text-sm text-slate-400 mb-4">
+              Prueft, ob Deine Kurserwartungen realistisch sind, basierend auf der tatsaechlichen historischen Schwankungsbreite der Aktie.
+            </p>
+
+            <!-- Volatilitaets-Daten -->
+            <template x-if="$store.app.computed.volatility">
+              <div class="space-y-4">
+                <!-- Volatilitaets-Metriken -->
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div class="bg-surface-900 rounded-lg p-3">
+                    <div class="text-xs text-slate-400">Taegliche Volatilitaet</div>
+                    <div class="text-lg font-bold text-amber-400" x-text="fmt.formatPercent($store.app.computed.volatility.dailyVol * 100)"></div>
+                    <div class="text-xs text-slate-500">Standardabweichung</div>
+                  </div>
+                  <div class="bg-surface-900 rounded-lg p-3">
+                    <div class="text-xs text-slate-400">Woechentliche Volatilitaet</div>
+                    <div class="text-lg font-bold text-amber-400" x-text="fmt.formatPercent($store.app.computed.volatility.weeklyVol * 100)"></div>
+                  </div>
+                  <div class="bg-surface-900 rounded-lg p-3">
+                    <div class="text-xs text-slate-400">
+                      <span class="tooltip-trigger" tabindex="0">
+                        ATR (14 Tage)
+                        <span class="tooltip-content">Average True Range - Die durchschnittliche taegliche Schwankungsbreite über 14 Tage.</span>
+                      </span>
+                    </div>
+                    <div class="text-lg font-bold text-amber-400" x-text="fmt.formatEur($store.app.computed.volatility.atr)"></div>
+                    <div class="text-xs text-slate-500" x-text="fmt.formatPercent($store.app.computed.volatility.atrPercent) + ' vom Kurs'"></div>
+                  </div>
+                  <div class="bg-surface-900 rounded-lg p-3">
+                    <div class="text-xs text-slate-400">Annualisiert</div>
+                    <div class="text-lg font-bold text-amber-400" x-text="fmt.formatPercent($store.app.computed.volatility.annualVol * 100)"></div>
+                  </div>
+                </div>
+
+                <!-- Ampel für Break-Even Rebuy -->
+                <div x-show="$store.app.computed.breakEvenRebuy"
+                     x-data="{
+                       get assessment() {
+                         const v = $store.app.computed.volatility;
+                         const drop = $store.app.computed.breakEvenRebuy?.requiredDropPercent || 0;
+                         if (!v || drop <= 0) return null;
+                         const expectedVol = v.dailyVol * Math.sqrt(20);
+                         const ratio = (drop / 100) / expectedVol;
+                         if (ratio <= 1) return { color: 'green', label: 'Realistisch', desc: 'Der benötigte Rückgang liegt innerhalb normaler Marktschwankungen (1 Monat).' };
+                         if (ratio <= 2) return { color: 'amber', label: 'Ambitioniert', desc: 'Moeglich, aber erfordert überdurchschnittliche Bewegung.' };
+                         return { color: 'red', label: 'Unrealistisch', desc: 'Statistisch sehr unwahrscheinlich im naechsten Monat.' };
+                       }
+                     }">
+                  <div class="rounded-xl p-4"
+                       :class="assessment?.color === 'green' ? 'bg-green-500/10 border border-green-500/20' : assessment?.color === 'amber' ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-red-500/10 border border-red-500/20'">
+                    <div class="flex items-center gap-3">
+                      <!-- Ampel -->
+                      <div class="flex flex-col gap-1">
+                        <div class="w-5 h-5 rounded-full" :class="assessment?.color === 'red' ? 'bg-red-500' : 'bg-red-500/20'"></div>
+                        <div class="w-5 h-5 rounded-full" :class="assessment?.color === 'amber' ? 'bg-amber-500' : 'bg-amber-500/20'"></div>
+                        <div class="w-5 h-5 rounded-full" :class="assessment?.color === 'green' ? 'bg-green-500' : 'bg-green-500/20'"></div>
+                      </div>
+                      <div>
+                        <div class="font-medium" :class="'text-' + assessment?.color + '-400'" x-text="'Break-Even Rebuy: ' + (assessment?.label || '')"></div>
+                        <div class="text-sm text-slate-400 mt-1">
+                          Benötigter Rückgang:
+                          <span class="font-medium text-slate-200" x-text="fmt.formatPercent($store.app.computed.breakEvenRebuy.requiredDropPercent)"></span>
+                          | Durchschnittliche Wochenschwankung:
+                          <span class="font-medium text-slate-200" x-text="fmt.formatPercent($store.app.computed.volatility.avgWeeklyMove * 100)"></span>
+                        </div>
+                        <div class="text-xs text-slate-500 mt-1" x-text="assessment?.desc"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Kontext -->
+                <div class="bg-surface-900 rounded-lg p-3 text-sm text-slate-400">
+                  <span>In den letzten <span class="text-slate-200" x-text="$store.app.computed.volatility.totalWeeks"></span> Wochen:</span>
+                  <span class="text-slate-200" x-text="$store.app.computed.volatility.weeksAbove5pct"></span> Wochen mit >5% Schwankung,
+                  <span class="text-slate-200" x-text="$store.app.computed.volatility.weeksAbove8pct"></span> Wochen mit >8%.
+                  <span class="text-xs block mt-1 text-slate-500">Basierend auf <span x-text="$store.app.computed.volatility.dataPoints"></span> Datenpunkten.</span>
+                </div>
+              </div>
+            </template>
+
+            <!-- Keine Daten -->
+            <div x-show="!$store.app.computed.volatility"
+                 class="text-center py-8 text-slate-500">
+              <p>Lade zuerst historische Kursdaten im Tab "Kurslevel".</p>
+              <p class="text-xs mt-1">Die Volatilitaetsanalyse basiert auf den historischen Kursdaten der Aktie.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== TAB: SPARPLAN ===== -->
+        <div x-show="$store.app.ui.activeTab === 'sparplan'" x-transition>
+          <div class="bg-surface-800 rounded-xl border border-surface-700 p-5">
+            <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+              <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
+              </svg>
+              Sparplan-Vergleich (DCA vs. Timing)
+            </h2>
+
+            <p class="text-sm text-slate-400 mb-2">
+              Was wäre, wenn du statt eines Einmalkaufs einen monatlichen Sparplan genutzt hättest?
+              Ein Sparplan investiert automatisch jeden Monat den gleichen Betrag — egal ob der Kurs hoch oder niedrig ist.
+            </p>
+
+            <!-- Sparplan-Einstellungen -->
+            <div class="bg-surface-900 rounded-xl p-4 mb-4">
+              <div class="text-sm font-medium text-slate-300 mb-3">Sparplan-Parameter</div>
+              <div class="grid grid-cols-3 gap-3">
+                <div>
+                  <label class="block text-xs text-slate-400 mb-1">Monatliche Sparrate (€)</label>
+                  <input type="number" min="10" step="10"
+                         x-model.number="$store.app.sparplan.monthlyAmount"
+                         class="w-full bg-surface-800 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50">
+                </div>
+                <div>
+                  <label class="block text-xs text-slate-400 mb-1">Startmonat</label>
+                  <select x-model.number="$store.app.sparplan.startMonth"
+                          class="w-full bg-surface-800 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50">
+                    <option value="1">Januar</option>
+                    <option value="2">Februar</option>
+                    <option value="3">März</option>
+                    <option value="4">April</option>
+                    <option value="5">Mai</option>
+                    <option value="6">Juni</option>
+                    <option value="7">Juli</option>
+                    <option value="8">August</option>
+                    <option value="9">September</option>
+                    <option value="10">Oktober</option>
+                    <option value="11">November</option>
+                    <option value="12">Dezember</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs text-slate-400 mb-1">Startjahr</label>
+                  <select x-model.number="$store.app.sparplan.startYear"
+                          class="w-full bg-surface-800 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50">
+                    <template x-for="y in [2020, 2021, 2022, 2023, 2024, 2025, 2026]" :key="y">
+                      <option :value="y" x-text="y"></option>
+                    </template>
+                  </select>
+                </div>
+              </div>
+              <!-- Berechnen-Button: holt bei Bedarf historische Daten nach und rechnet dann -->
+              <button @click="(async () => {
+                        const sp = $store.app.sparplan;
+                        const neededFrom = sp.startYear + '-' + String(sp.startMonth).padStart(2, '0') + '-01';
+                        const haveData = $store.app.market.historicalData;
+                        const haveFrom = haveData.length > 0 ? haveData[0].date : null;
+                        if (!$store.app.position.ticker) { return; }
+                        if (!haveFrom || neededFrom < haveFrom) {
+                          await fetchHistorical($store.app.position.ticker, neededFrom);
+                        } else {
+                          recalculate();
+                        }
+                      })()"
+                      :disabled="$store.app.market.loading"
+                      class="w-full bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 font-medium text-sm rounded-lg px-4 py-2.5 transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                <svg x-show="!$store.app.market.loading" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                </svg>
+                <svg x-show="$store.app.market.loading" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25"/>
+                  <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" class="opacity-75"/>
+                </svg>
+                <span x-text="$store.app.market.loading ? 'Kursdaten werden geladen...' : 'Sparplan berechnen'"></span>
+              </button>
+            </div>
+
+            <template x-if="$store.app.computed.dcaResult">
+              <div class="space-y-4">
+                <!-- Ergebnis-Karte -->
+                <div class="rounded-xl p-5 border"
+                     :class="$store.app.computed.dcaResult.winner === 'sparplan' ? 'bg-cyan-500/10 border-cyan-500/20' : 'bg-green-500/10 border-green-500/20'">
+                  <div class="text-sm" :class="$store.app.computed.dcaResult.winner === 'sparplan' ? 'text-cyan-300' : 'text-green-300'"
+                       x-text="$store.app.computed.dcaResult.winnerLabel"></div>
+                  <div class="text-2xl font-bold mt-1"
+                       :class="$store.app.computed.dcaResult.winner === 'sparplan' ? 'text-cyan-400' : 'text-green-400'"
+                       x-text="'Unterschied: ' + fmt.formatEur($store.app.computed.dcaResult.opportunityCost)"></div>
+                </div>
+
+                <!-- Vergleichstabelle -->
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="bg-surface-900 rounded-xl p-4">
+                    <div class="text-sm font-semibold text-slate-300 mb-3">Dein Einmalkauf</div>
+                    <div class="space-y-2 text-sm">
+                      <div class="flex justify-between">
+                        <span class="text-slate-400">Aktien:</span>
+                        <span class="text-slate-200" x-text="fmt.formatNumber($store.app.computed.dcaResult.timing.totalShares)"></span>
+                      </div>
+                      <div class="flex justify-between">
+                        <span class="text-slate-400">Kaufkurs:</span>
+                        <span class="text-slate-200" x-text="fmt.formatEur($store.app.computed.dcaResult.timing.avgPrice)"></span>
+                      </div>
+                      <div class="flex justify-between">
+                        <span class="text-slate-400">Investiert:</span>
+                        <span class="text-slate-200" x-text="fmt.formatEur($store.app.computed.dcaResult.timing.totalCost)"></span>
+                      </div>
+                      <div class="flex justify-between">
+                        <span class="text-slate-400">Aktueller Wert:</span>
+                        <span class="text-slate-200" x-text="fmt.formatEur($store.app.computed.dcaResult.timing.currentValue)"></span>
+                      </div>
+                      <hr class="border-surface-700">
+                      <div class="flex justify-between font-medium">
+                        <span class="text-slate-400">Gewinn/Verlust:</span>
+                        <span :class="fmt.profitColorClass($store.app.computed.dcaResult.timing.profit)"
+                              x-text="fmt.formatEurSigned($store.app.computed.dcaResult.timing.profit) + ' (' + fmt.formatPercentSigned($store.app.computed.dcaResult.timing.returnPct) + ')'"></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="bg-surface-900 rounded-xl p-4">
+                    <div class="text-sm font-semibold text-cyan-300 mb-3">Hypothetischer Sparplan</div>
+                    <div class="space-y-2 text-sm">
+                      <div class="flex justify-between">
+                        <span class="text-slate-400">Aktien:</span>
+                        <span class="text-slate-200" x-text="fmt.formatNumber($store.app.computed.dcaResult.dca.totalShares)"></span>
+                      </div>
+                      <div class="flex justify-between">
+                        <span class="text-slate-400">Ø Kaufkurs:</span>
+                        <span class="text-slate-200" x-text="fmt.formatEur($store.app.computed.dcaResult.dca.avgPrice)"></span>
+                      </div>
+                      <div class="flex justify-between">
+                        <span class="text-slate-400">Investiert:</span>
+                        <span class="text-slate-200" x-text="fmt.formatEur($store.app.computed.dcaResult.dca.totalCost)"></span>
+                      </div>
+                      <div class="flex justify-between">
+                        <span class="text-slate-400">Aktueller Wert:</span>
+                        <span class="text-slate-200" x-text="fmt.formatEur($store.app.computed.dcaResult.dca.currentValue)"></span>
+                      </div>
+                      <hr class="border-surface-700">
+                      <div class="flex justify-between font-medium">
+                        <span class="text-slate-400">Gewinn/Verlust:</span>
+                        <span :class="fmt.profitColorClass($store.app.computed.dcaResult.dca.profit)"
+                              x-text="fmt.formatEurSigned($store.app.computed.dcaResult.dca.profit) + ' (' + fmt.formatPercentSigned($store.app.computed.dcaResult.dca.returnPct) + ')'"></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Datenbasis-Info -->
+                <div class="bg-surface-900 rounded-lg p-3 text-xs text-slate-500 space-y-1">
+                  <div>
+                    Simulation: <strong class="text-slate-300" x-text="$store.app.computed.dcaResult.dca.months"></strong> Monate,
+                    <strong class="text-slate-300" x-text="fmt.formatEur($store.app.computed.dcaResult.dca.monthlyAmount)"></strong>/Monat,
+                    Kauf jeweils am 15. des Monats.
+                  </div>
+                  <div>
+                    Kursdaten verfügbar: <strong class="text-slate-300" x-text="$store.app.computed.dcaResult.meta?.dataStart"></strong>
+                    bis <strong class="text-slate-300" x-text="$store.app.computed.dcaResult.meta?.dataEnd"></strong>
+                    (<span x-text="$store.app.computed.dcaResult.meta?.totalDataPoints"></span> Datenpunkte)
+                  </div>
+                  <div x-show="$store.app.computed.dcaResult.meta?.wasClamped" class="text-amber-400">
+                    Hinweis: Dein gewünschter Start (<span x-text="$store.app.computed.dcaResult.meta?.requestedStart"></span>) liegt vor den verfügbaren Daten.
+                    Die Simulation startet ab <strong x-text="$store.app.computed.dcaResult.meta?.effectiveStart"></strong>.
+                  </div>
+                  <div x-show="$store.app.computed.dcaResult.meta?.skippedMonths > 0" class="text-amber-400">
+                    <span x-text="$store.app.computed.dcaResult.meta?.skippedMonths"></span> Monate ohne Kursdaten übersprungen.
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <!-- Keine Daten -->
+            <div x-show="!$store.app.computed.dcaResult && $store.app.market.historicalData.length === 0"
+                 class="text-center py-8 text-slate-500">
+              <p>Lade zuerst historische Kursdaten (Tab "Kurslevel") und gib deine Positionsdaten ein.</p>
+              <p class="text-xs mt-1">Der Sparplan-Vergleich benötigt historische Kurse für die Simulation.</p>
+            </div>
+            <div x-show="!$store.app.computed.dcaResult && $store.app.market.historicalData.length > 0"
+                 class="text-center py-8 text-slate-500">
+              <p>Klicke "Sparplan berechnen" — bei Bedarf werden automatisch Kursdaten für den gewählten Zeitraum geladen.</p>
+              <p class="text-xs mt-1">Verfügbare Kursdaten: <span x-text="$store.app.market.historicalData[0]?.date"></span> bis <span x-text="$store.app.market.historicalData[$store.app.market.historicalData.length - 1]?.date"></span></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== ADVISORY PANEL ===== -->
+        <div class="bg-surface-800 rounded-xl border border-surface-700 p-5"
+             x-show="$store.app.position.shares > 0 && $store.app.position.buyPrice > 0 && $store.app.computed.advisories.length > 0"
+             x-data="{ showAll: false }">
+          <h3 class="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+            <svg class="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+            </svg>
+            Hinweise & Empfehlungen
+            <span class="text-xs text-slate-500 ml-auto" x-text="$store.app.computed.advisories.length + ' Hinweise'"></span>
+          </h3>
+
+          <div class="space-y-2" id="advisoryPanel">
+            <template x-for="(adv, i) in (showAll ? $store.app.computed.advisories : $store.app.computed.advisories.slice(0, 3))" :key="adv.ruleId">
+              <div class="rounded-r-lg p-3 border-l-4"
+                   :class="{
+                     'bg-red-500/5 border-red-500': adv.severity === 'red',
+                     'bg-amber-500/5 border-amber-500': adv.severity === 'amber',
+                     'bg-green-500/5 border-green-500': adv.severity === 'green',
+                     'bg-blue-500/5 border-blue-500': adv.severity === 'blue'
+                   }">
+                <div class="text-xs">
+                  <div class="font-medium mb-0.5"
+                       :class="{
+                         'text-red-400': adv.severity === 'red',
+                         'text-amber-400': adv.severity === 'amber',
+                         'text-green-400': adv.severity === 'green',
+                         'text-blue-400': adv.severity === 'blue'
+                       }"
+                       x-text="adv.title"></div>
+                  <div class="text-slate-400" x-text="adv.message"></div>
+                  <div class="text-slate-500 italic mt-1" x-text="adv.action"></div>
+                </div>
+              </div>
+            </template>
+
+            <!-- Mehr anzeigen -->
+            <button x-show="$store.app.computed.advisories.length > 3"
+                    @click="showAll = !showAll"
+                    class="text-xs text-brand hover:text-brand-dark transition-colors">
+              <span x-text="showAll ? 'Weniger anzeigen' : 'Alle ' + $store.app.computed.advisories.length + ' Hinweise anzeigen'"></span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- ===== SETTINGS MODAL ===== -->
+  <div x-show="$store.app.ui.showSettings" x-transition.opacity
+       class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+       @click.self="$store.app.ui.showSettings = false">
+    <div class="bg-surface-800 rounded-2xl border border-surface-700 p-6 w-full max-w-md mx-4 shadow-2xl"
+         @click.stop>
+      <h2 class="text-lg font-semibold mb-4">Einstellungen</h2>
+
+      <div class="space-y-4">
+        <!-- API-Quelle Umschalter -->
+        <div>
+          <label class="block text-sm text-slate-400 mb-1">Datenquelle</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button @click="$store.app.settings.apiSource = 'yahoo'"
+                    class="px-3 py-2 rounded-lg text-sm font-medium transition-colors border"
+                    :class="$store.app.settings.apiSource === 'yahoo' ? 'bg-brand/20 border-brand text-brand' : 'bg-surface-900 border-surface-600 text-slate-400 hover:text-slate-200'">
+              Yahoo Finance
+              <span class="block text-xs font-normal opacity-70">Kein Key nötig</span>
+            </button>
+            <button @click="$store.app.settings.apiSource = 'fmp'"
+                    class="px-3 py-2 rounded-lg text-sm font-medium transition-colors border"
+                    :class="$store.app.settings.apiSource === 'fmp' ? 'bg-brand/20 border-brand text-brand' : 'bg-surface-900 border-surface-600 text-slate-400 hover:text-slate-200'">
+              FMP (mehr Daten)
+              <span class="block text-xs font-normal opacity-70">Kostenloser Key</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- FMP API Key (nur wenn FMP gewählt) -->
+        <div x-show="$store.app.settings.apiSource === 'fmp'" x-transition>
+          <label class="block text-sm text-slate-400 mb-1">FMP API-Key</label>
+          <input type="text"
+                 x-model="$store.app.settings.apiKey"
+                 placeholder="Deinen kostenlosen API-Key eingeben"
+                 class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+          <p class="text-xs text-slate-500 mt-1">
+            Kostenlos registrieren auf
+            <a href="https://financialmodelingprep.com/register" target="_blank" rel="noopener"
+               class="text-brand hover:underline">financialmodelingprep.com</a>
+          </p>
+        </div>
+
+        <!-- Standard-Gebühr -->
+        <div>
+          <label class="block text-sm text-slate-400 mb-1">Standard-Gebühr pro Trade (EUR)</label>
+          <input type="number" min="0" step="0.01"
+                 x-model.number="$store.app.position.brokerFee"
+                 class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+          <p class="text-xs text-slate-500 mt-1">Trade Republic: 1,00 EUR | Scalable: 0,99 EUR</p>
+        </div>
+      </div>
+
+      <button @click="$store.app.ui.showSettings = false"
+              class="mt-6 w-full bg-brand hover:bg-brand-dark text-white font-medium rounded-lg px-4 py-2 transition-colors">
+        Schließen
+      </button>
+    </div>
+  </div>
+
+  <!-- ===== GLOSSAR MODAL ===== -->
+  <div x-show="$store.app.ui.showGlossary" x-transition.opacity
+       class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+       @click.self="$store.app.ui.showGlossary = false">
+    <div class="bg-surface-800 rounded-2xl border border-surface-700 p-6 w-full max-w-lg mx-4 shadow-2xl max-h-[80vh] overflow-y-auto"
+         @click.stop>
+      <h2 class="text-lg font-semibold mb-4">Glossar - Fachbegriffe erklaert</h2>
+
+      <div class="space-y-3">
+        <template x-for="[key, entry] of Object.entries(GLOSSARY)" :key="key">
+          <div class="bg-surface-900 rounded-lg p-3">
+            <div class="font-medium text-brand text-sm" x-text="entry.term"></div>
+            <div class="text-xs text-slate-400 mt-1" x-text="entry.long"></div>
+          </div>
+        </template>
+      </div>
+
+      <button @click="$store.app.ui.showGlossary = false"
+              class="mt-4 w-full bg-surface-700 hover:bg-surface-600 text-slate-200 font-medium rounded-lg px-4 py-2 transition-colors">
+        Schließen
+      </button>
+    </div>
+  </div>
+
+</body>
+</html>
