@@ -29,43 +29,36 @@
   display: none;
 }
 
-/* Tooltip System */
+/* Tooltip System — globaler Tooltip wird an body angehängt */
 .tooltip-trigger {
-  position: relative;
   cursor: help;
   border-bottom: 1px dotted #64748B;
   display: inline;
 }
 
-.tooltip-content {
-  display: none;
+/* Verstecke die eingebetteten .tooltip-content Elemente — Text wird per JS ausgelesen */
+.tooltip-trigger > .tooltip-content {
+  display: none !important;
+}
+
+/* Globaler Tooltip (wird per JS erzeugt und an body gehängt) */
+#global-tooltip {
   position: fixed;
   background: #1E293B;
   border: 1px solid #475569;
   color: #CBD5E1;
-  font-size: 0.75rem;
-  line-height: 1.5;
-  padding: 0.625rem 0.875rem;
+  font-size: 0.8rem;
+  font-weight: 400;
+  line-height: 1.6;
+  padding: 0.75rem 1rem;
   border-radius: 0.5rem;
   white-space: normal;
   width: max-content;
-  max-width: 320px;
-  z-index: 9999;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  max-width: 340px;
+  z-index: 99999;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
   pointer-events: none;
-  transform: translate(-50%, -100%);
-  margin-top: -8px;
-}
-
-.tooltip-trigger:hover .tooltip-content,
-.tooltip-trigger:focus .tooltip-content {
-  display: block;
-}
-
-/* Alle Container erlauben Tooltip-Overflow */
-.tooltip-trigger:hover,
-.tooltip-trigger:focus {
-  z-index: 9999;
+  display: none;
 }
 
 /* Range Slider Styling */

@@ -15,6 +15,12 @@ import { calculateVolatility } from './modules/volatility-check.js';
 import { compareDcaVsTiming } from './modules/dca-comparison.js';
 import { evaluateAdvisory } from './modules/advisory.js';
 import * as api from './api-client.js';
+import { callGeminiAnalysis, hasApiKey, TEMPERATURE_BY_TEMPLATE, testConnection as aiTestConnection } from './ai-client.js';
+import { buildTradingAssessmentPrompt, buildStockForecastPrompt } from './ai-prompts.js';
+import { renderAiResult, renderAiError, renderAiLoading } from './ai-renderer.js';
+
+// Global für inline Settings-Handler
+window.aiTestConnection = aiTestConnection;
 
 // Globals fuer Alpine-Templates
 window.Alpine = Alpine;
@@ -81,6 +87,12 @@ Alpine.store('app', {
     showGlossary: false,
     mobileMenuOpen: false,
     showLevels: true
+  },
+  ai: {
+    loading: false,
+    result: null,
+    error: null,
+    mode: 'assessment' // 'assessment' | 'forecast'
   },
   search: {
     query: '',
@@ -275,8 +287,14 @@ Alpine.data('tradingCockpit', () => ({
     store.search.results = localResults.map(s => ({ ...s, exchange: s.index }));
     store.search.show = localResults.length > 0;
 
-    if (store.settings.apiKey && query.length >= 2) {
+    // Online-Suche: Yahoo läuft ohne Key, FMP benötigt einen Key.
+    const onlineAllowed =
+      store.settings.apiSource === 'yahoo' ||
+      (store.settings.apiSource === 'fmp' && store.settings.apiKey);
+
+    if (onlineAllowed && query.length >= 2) {
       store.search.loading = true;
+      store.search.show = true;
       api.searchStocks(query).then(apiResults => {
         if (apiResults && apiResults.length > 0) {
           const existingSymbols = new Set(store.search.results.map(r => r.symbol));
@@ -383,6 +401,49 @@ Alpine.data('tradingCockpit', () => ({
     this.$store.app.position = { ...DEFAULT_POSITION };
     this.$store.app.market = { quote: null, historicalData: [], lastFetch: null, loading: false, error: null };
     this.$store.app.search.query = '';
+  },
+
+  hasApiKey() { return hasApiKey(); },
+
+  async runAiAnalysis(mode = 'assessment') {
+    const store = this.$store.app;
+    if (!hasApiKey()) {
+      store.ai.error = 'Kein API-Key konfiguriert. Trage einen Gemini API-Key in den Einstellungen ein.';
+      store.ai.result = null;
+      return;
+    }
+    store.ai.loading = true;
+    store.ai.error = null;
+    store.ai.result = null;
+    store.ai.mode = mode;
+    try {
+      let prompt, useGrounding, temperature, analysisType;
+      if (mode === 'forecast') {
+        prompt = buildStockForecastPrompt(store);
+        useGrounding = true;
+        temperature = TEMPERATURE_BY_TEMPLATE.B;
+        analysisType = 'stock_forecast';
+      } else {
+        prompt = buildTradingAssessmentPrompt(store);
+        useGrounding = false;
+        temperature = TEMPERATURE_BY_TEMPLATE.A;
+        analysisType = 'trading_position_assessment';
+      }
+      const result = await callGeminiAnalysis({ userPrompt: prompt, useGrounding, temperature, analysisType });
+      store.ai.result = result;
+    } catch (e) {
+      store.ai.error = e.message || String(e);
+    } finally {
+      store.ai.loading = false;
+    }
+  },
+
+  renderAiHtml() {
+    const store = this.$store.app;
+    if (store.ai.loading) return renderAiLoading();
+    if (store.ai.error) return renderAiError(store.ai.error);
+    if (store.ai.result) return renderAiResult(store.ai.result);
+    return '';
   },
 
   formatEur: fmt.formatEur,

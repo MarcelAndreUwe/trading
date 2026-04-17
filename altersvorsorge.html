@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="de" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Altersvorsorge-Vergleichsrechner</title>
+  <meta name="description" content="ETF-Sparplan vs. ETF-Rentenversicherung vs. Altersvorsorgedepot — Vergleichsrechner für die deutsche Altersvorsorge.">
+  <meta name="theme-color" content="#0F172A">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: { colors: {
+        brand: { DEFAULT: '#06B6D4', dark: '#0891B2' },
+        surface: { 900: '#0F172A', 800: '#1E293B', 700: '#334155', 600: '#475569' }
+      }}}
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts@latest/dist/apexcharts.min.js"></script>
+  <link rel="stylesheet" href="css/custom.css">
+  <script type="module" src="js/altersvorsorge-app.js"></script>
+  <script src="js/tooltip.js"></script>
+</head>
+<body class="bg-surface-900 text-slate-50 min-h-screen" x-data="altersvorsorgeRechner">
+
+  <!-- TOP BAR -->
+  <header class="sticky top-0 z-50 bg-surface-800 border-b border-surface-700 px-4 py-2 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <svg class="w-7 h-7 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+      </svg>
+      <nav class="flex items-center gap-1">
+        <a href="index.html" class="px-3 py-1.5 text-sm rounded-lg text-slate-400 hover:text-slate-200 hover:bg-surface-700 transition-colors">Trading Cockpit</a>
+        <a href="altersvorsorge.html" class="px-3 py-1.5 text-sm rounded-lg bg-brand/20 text-brand font-medium">Altersvorsorge</a>
+      </nav>
+    </div>
+    <div class="flex items-center gap-2">
+      <div class="text-xs text-slate-500 hidden sm:block">Stand: Gesetz vom 27.03.2026</div>
+      <button @click="$store.av.ui.showSettings = true"
+              class="p-2 rounded-lg hover:bg-surface-700 transition-colors" title="Einstellungen">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="flex h-[calc(100vh-49px)]">
+    <!-- SIDEBAR -->
+    <aside class="w-80 flex-shrink-0 bg-surface-800 border-r border-surface-700 overflow-y-auto hidden lg:block">
+      <div class="p-4 space-y-5">
+
+        <!-- Persönliche Daten -->
+        <div class="space-y-3">
+          <h3 class="text-sm font-semibold text-slate-300">Persönliche Daten</h3>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1"><span class="tooltip-trigger" tabindex="0">Alter<span class="tooltip-content">Dein aktuelles Alter. Bestimmt zusammen mit dem Rentenalter die Anspardauer — je länger, desto stärker wirkt der Zinseszinseffekt.</span></span></label>
+              <input type="number" min="18" max="60" x-model.number="$store.av.inputs.currentAge"
+                     class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1"><span class="tooltip-trigger" tabindex="0">Rentenalter<span class="tooltip-content">Das Alter, in dem du in Rente gehen möchtest. Ab 65 Jahren kann das Altersvorsorgedepot ausgezahlt werden. Das Halbeinkünfteverfahren der Rentenversicherung greift ab 62.</span></span></label>
+              <input type="number" min="60" max="70" x-model.number="$store.av.inputs.retirementAge"
+                     class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1"><span class="tooltip-trigger" tabindex="0">Kinder<span class="tooltip-content">Anzahl kindergeldberechtigter Kinder. Beim Altersvorsorgedepot erhältst du 300 € Kinderzulage pro Kind und Jahr zusätzlich zur Grundzulage.</span></span></label>
+              <input type="number" min="0" max="5" x-model.number="$store.av.inputs.numberOfChildren"
+                     class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+            </div>
+            <div class="flex items-end pb-1">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" x-model="$store.av.inputs.isCareerStarter" class="rounded bg-surface-900 border-surface-600 text-brand focus:ring-brand/50">
+                <span class="text-xs text-slate-400 tooltip-trigger" tabindex="0">Berufseinsteiger<br>(<25 Jahre)<span class="tooltip-content">Falls du unter 25 bist und zum ersten Mal ein Altersvorsorgedepot eröffnest, erhältst du einmalig 200 € Berufseinsteigerbonus vom Staat dazu.</span></span>
+              </label>
+            </div>
+          </div>
+          <!-- Spardauer Anzeige -->
+          <div class="bg-surface-900 rounded-lg px-3 py-2 text-xs text-slate-400 flex justify-between">
+            <span>Anspardauer:</span>
+            <span class="text-brand font-medium" x-text="($store.av.inputs.retirementAge - $store.av.inputs.currentAge) + ' Jahre'"></span>
+          </div>
+        </div>
+
+        <hr class="border-surface-700">
+
+        <!-- Sparrate & Rendite -->
+        <div class="space-y-3">
+          <h3 class="text-sm font-semibold text-slate-300">Sparrate & Rendite</h3>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1"><span class="tooltip-trigger" tabindex="0">Monatl. Sparrate (€)<span class="tooltip-content">Der Betrag, den du jeden Monat investieren möchtest. Beim Altersvorsorgedepot sind max. 150 €/Monat (1.800 €/Jahr) staatlich gefördert. Sparst du mehr, wird automatisch eine Kombi-Strategie berechnet.</span></span></label>
+              <input type="number" min="25" max="500" step="25" x-model.number="$store.av.inputs.monthlyAmount"
+                     class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">
+                <span class="tooltip-trigger" tabindex="0">
+                  Startkapital (€)
+                  <span class="tooltip-content">Falls du bereits Vermögen im ETF/Depot hast. Dieses Startkapital wird als Anfangsbestand für alle drei Produkte verwendet.</span>
+                </span>
+              </label>
+              <input type="number" min="0" step="100" x-model.number="$store.av.inputs.initialBalance"
+                     class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+            </div>
+          </div>
+          <div class="text-xs text-slate-500 mt-1" x-show="$store.av.inputs.monthlyAmount > 150">
+            Hinweis: Altersvorsorgedepot max. 150 €/Monat gefördert. Kombi-Strategie wird berechnet.
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1"><span class="tooltip-trigger" tabindex="0">Erwartete Rendite (%)<span class="tooltip-content">Die jährliche Bruttorendite deiner ETF-Anlage vor Kosten. Der MSCI World erzielte historisch 7–8% p.a. über 20+ Jahre. Konservativ: 5%, mittel: 7%, optimistisch: 9%. Die Rendite schwankt — in schlechten Jahren kann sie deutlich negativ sein.</span></span></label>
+              <input type="number" min="3" max="12" step="0.5" x-model.number="$store.av.inputs.expectedReturn"
+                     class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1"><span class="tooltip-trigger" tabindex="0">ETF TER (%)<span class="tooltip-content">Total Expense Ratio — die jährliche Gesamtkostenquote des ETF. Sie wird automatisch vom Fondsvermögen abgezogen. Günstige MSCI-World-ETFs: 0,05–0,22%. Je niedriger, desto mehr Rendite bleibt bei dir.</span></span></label>
+              <input type="number" min="0.05" max="0.50" step="0.01" x-model.number="$store.av.inputs.etfTer"
+                     class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">
+                <span class="tooltip-trigger" tabindex="0">
+                  Basiszins (%)
+                  <span class="tooltip-content">Der Basiszins wird jährlich von der Bundesbank festgelegt und bestimmt die Vorabpauschale beim ETF-Sparplan. 2025: 2,53%.</span>
+                </span>
+              </label>
+              <input type="number" min="0" max="5" step="0.01" x-model.number="$store.av.inputs.basiszins"
+                     class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1"><span class="tooltip-trigger" tabindex="0">AVD Kosten (%)<span class="tooltip-content">Jährliche Gesamtkosten des Altersvorsorgedepots (Depotführung + ETF-Kosten). Der geplante gesetzliche Kostendeckel liegt bei 1,0% (privat) bis 1,5% (Standardprodukt). Finanztip empfiehlt max. 0,5%. Stand: Gesetz noch nicht final.</span></span></label>
+              <input type="number" min="0.3" max="1.5" step="0.05" x-model.number="$store.av.inputs.avdCostRate"
+                     class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+            </div>
+          </div>
+        </div>
+
+        <hr class="border-surface-700">
+
+        <!-- Steuereinstellungen -->
+        <div class="space-y-3">
+          <h3 class="text-sm font-semibold text-slate-300">Steuern</h3>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1"><span class="tooltip-trigger" tabindex="0">Kirchensteuer<span class="tooltip-content">Nur für Mitglieder der evangelischen oder katholischen Kirche. Beträgt 8% (Bayern, Baden-Württemberg) oder 9% (alle anderen Bundesländer) der Abgeltungssteuer. Erhöht die effektive Steuerbelastung um ca. 1,5 Prozentpunkte.</span></span></label>
+            <select x-model="$store.av.inputs.bundeslandId"
+                    class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+              <template x-for="bl in TaxEngine.BUNDESLAENDER" :key="bl.id">
+                <option :value="bl.id" x-text="bl.label"></option>
+              </template>
+            </select>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">
+                <span class="tooltip-trigger" tabindex="0">
+                  Steuersatz heute (%)
+                  <span class="tooltip-content">Dein persönlicher Grenzsteuersatz auf das Einkommen. Bestimmt den Steuervorteil der Sonderausgaben beim Altersvorsorgedepot.</span>
+                </span>
+              </label>
+              <input type="number" min="14" max="45" step="1" x-model.number="$store.av.inputs.personalTaxRateCurrent"
+                     class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">
+                <span class="tooltip-trigger" tabindex="0">
+                  Steuersatz Rente (%)
+                  <span class="tooltip-content">Dein erwarteter Steuersatz im Rentenalter. Meist niedriger als heute, da das Einkommen geringer ist. Relevant für RV und AVD.</span>
+                </span>
+              </label>
+              <input type="number" min="14" max="42" step="1" x-model.number="$store.av.inputs.personalTaxRateRetirement"
+                     class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1"><span class="tooltip-trigger" tabindex="0">Sparerpauschbetrag verbraucht (€)<span class="tooltip-content">Jeder Person stehen 1.000 € steuerfreie Kapitalerträge pro Jahr zu. Wenn du diesen Freibetrag bereits bei einer anderen Bank nutzt (z.B. für Tagesgeld-Zinsen), trage hier den bereits verbrauchten Betrag ein. Der Rest steht für die Vorabpauschale des ETF-Sparplans zur Verfügung.</span></span></label>
+            <input type="number" min="0" max="1000" step="50" x-model.number="$store.av.inputs.sparerpauschbetragUsed"
+                   class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+          </div>
+        </div>
+
+        <hr class="border-surface-700">
+
+        <!-- Rentenversicherung Anbieter -->
+        <div class="space-y-3">
+          <h3 class="text-sm font-semibold text-slate-300"><span class="tooltip-trigger" tabindex="0">RV-Anbieter<span class="tooltip-content">Wähle einen Anbieter für die ETF-Rentenversicherung (Schicht 3). Die Kosten unterscheiden sich stark: Nettotarife (ohne Abschlussprovision) sind deutlich günstiger als Provisionstarife. Die Alte Leipziger ist laut Stiftung Warentest (2025) Testsieger bei Nettotarifen.</span></span></h3>
+          <select x-model="$store.av.inputs.selectedProviderId"
+                  class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+            <template x-for="p in $store.av.providers" :key="p.id">
+              <option :value="p.id" x-text="p.name + ' (' + (p.totalCostRate * 100).toFixed(2) + '% p.a.)'"></option>
+            </template>
+          </select>
+          <div class="bg-surface-900 rounded-lg p-2 text-xs text-slate-500"
+               x-text="($store.av.providers.find(p => p.id === $store.av.inputs.selectedProviderId) || {}).notes || ''"></div>
+        </div>
+
+        <hr class="border-surface-700">
+
+        <!-- Berufliche Situation (für Rürup/Riester) -->
+        <div class="space-y-3">
+          <h3 class="text-sm font-semibold text-slate-300">
+            <span class="tooltip-trigger" tabindex="0">Berufliche Situation<span class="tooltip-content">Für Rürup- und Riester-Berechnung nötig: Brutto-Einkommen bestimmt den Mindesteigenbeitrag (4%-Regel bei Riester) und den absetzbaren Rürup-Höchstbetrag. Bei Angestellten wird der GRV-Arbeitnehmeranteil (9,3%) vom Rürup-Höchstbetrag abgezogen.</span></span>
+          </h3>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">
+              <span class="tooltip-trigger" tabindex="0">Brutto-Jahreseinkommen (€)<span class="tooltip-content">Dein Bruttogehalt pro Jahr (bei Selbstständigen: zu versteuerndes Einkommen). Grundlage für Rürup-Höchstbetrag (max. 29.344 €/Jahr absetzbar 2025) und Riester-Mindesteigenbeitrag (4% vom Vorjahresbrutto). 0 € = keine Rürup/Riester-Berechnung.</span></span>
+            </label>
+            <input type="number" min="0" step="1000" x-model.number="$store.av.inputs.grossIncome"
+                   class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50"
+                   placeholder="z.B. 50000">
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">
+                <span class="tooltip-trigger" tabindex="0">Erwerbsstatus<span class="tooltip-content">Bei "Angestellt/Beamter" werden für Rürup vom Höchstbetrag rd. 18,6% des Brutto (AN+AG-Rentenbeitrag) abgezogen. Selbstständige können den vollen Höchstbetrag nutzen.</span></span>
+              </label>
+              <select x-model="$store.av.inputs.employmentType"
+                      class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+                <option value="angestellt">Angestellt</option>
+                <option value="selbststaendig">Selbstständig</option>
+                <option value="beamte">Beamter</option>
+              </select>
+            </div>
+            <div class="flex items-end pb-1">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" x-model="$store.av.inputs.isMarried"
+                       class="rounded bg-surface-900 border-surface-600 text-brand focus:ring-brand/50">
+                <span class="text-xs text-slate-400 tooltip-trigger" tabindex="0">Verheiratet<span class="tooltip-content">Verheiratete Paare haben bei Rürup den doppelten Höchstbetrag (58.688 € statt 29.344 € in 2025).</span></span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <hr class="border-surface-700">
+
+        <!-- Rürup-Rente -->
+        <div class="space-y-3">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" x-model="$store.av.inputs.enableRuerup"
+                   class="rounded bg-surface-900 border-surface-600 text-brand focus:ring-brand/50">
+            <span class="text-sm font-semibold text-slate-300 tooltip-trigger" tabindex="0">Rürup-Rente einbeziehen<span class="tooltip-content">Die Rürup-Rente (Basisrente, Schicht 1) ist 100% steuerlich absetzbar (bis 29.344 €/Jahr 2025). Dafür: keine Kapitalauszahlung möglich, nur lebenslange Rente. Sinnvoll vor allem für Selbstständige mit hohem Grenzsteuersatz (ab 42%).</span></span>
+          </label>
+          <div x-show="$store.av.inputs.enableRuerup" class="space-y-2">
+            <label class="block text-xs text-slate-400 mb-1">Rürup-Anbieter</label>
+            <select x-model="$store.av.inputs.ruerupProviderId"
+                    class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+              <template x-for="p in RUERUP_PROVIDERS" :key="p.id">
+                <option :value="p.id" x-text="p.name + ' (' + (p.totalCostRate * 100).toFixed(2) + '% p.a., Rentenf. ' + p.guaranteedPensionFactor + '€)'"></option>
+              </template>
+            </select>
+            <div class="bg-surface-900 rounded-lg p-2 text-xs text-slate-500"
+                 x-text="(RUERUP_PROVIDERS.find(p => p.id === $store.av.inputs.ruerupProviderId) || {}).notes || ''"></div>
+          </div>
+        </div>
+
+        <hr class="border-surface-700">
+
+        <!-- Riester-Rente -->
+        <div class="space-y-3">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" x-model="$store.av.inputs.enableRiester"
+                   class="rounded bg-surface-900 border-surface-600 text-brand focus:ring-brand/50">
+            <span class="text-sm font-semibold text-slate-300 tooltip-trigger" tabindex="0">Riester-Rente einbeziehen<span class="tooltip-content">Die Riester-Rente wird ab 01.01.2027 durch das Altersvorsorgedepot abgelöst. Verbraucherzentrale/Finanztip raten seit 2024 vom Neuabschluss ab. Sinnvoll ggf. nur noch für Familien mit mehreren Kindern (je 300 € Zulage) oder Geringverdiener. Nur zu Vergleichszwecken anzeigen!</span></span>
+          </label>
+          <div x-show="$store.av.inputs.enableRiester" class="space-y-2">
+            <div class="bg-red-500/10 border border-red-500/30 rounded-lg p-2 text-xs text-red-300">
+              <strong>Verbraucherzentrale (2026):</strong> "Vom Neuabschluss wird abgeraten." Die Riester-Rente wird 2027 durch das Altersvorsorgedepot ersetzt. Vergleich ist nur sinnvoll bei bestehenden Verträgen oder Familien mit mehreren Kindern.
+            </div>
+            <label class="block text-xs text-slate-400 mb-1">Riester-Produkt</label>
+            <select x-model="$store.av.inputs.riesterProviderId"
+                    class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+              <template x-for="p in RIESTER_PROVIDERS" :key="p.id">
+                <option :value="p.id" x-text="p.name + ' (' + (p.totalCostRate * 100).toFixed(2) + '% p.a.)'"></option>
+              </template>
+            </select>
+            <div class="bg-surface-900 rounded-lg p-2 text-xs text-slate-500"
+                 x-text="(RIESTER_PROVIDERS.find(p => p.id === $store.av.inputs.riesterProviderId) || {}).notes || ''"></div>
+          </div>
+        </div>
+
+        <hr class="border-surface-700">
+
+        <!-- Berechnen Button -->
+        <button @click="recalculate()"
+                class="w-full bg-brand hover:bg-brand-dark text-white font-medium rounded-lg px-4 py-3 transition-colors flex items-center justify-center gap-2 text-sm">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+          </svg>
+          Vergleich berechnen
+        </button>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="flex-1 overflow-y-auto">
+      <div class="p-4 lg:p-6 max-w-6xl mx-auto space-y-5">
+
+        <!-- Kein Ergebnis -->
+        <div x-show="!$store.av.results" class="text-center py-20 text-slate-500">
+          <svg class="w-16 h-16 mx-auto mb-4 text-surface-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+          </svg>
+          <p class="text-lg mb-2">Altersvorsorge-Vergleich</p>
+          <p class="text-sm">Passe links deine Parameter an und klicke "Vergleich berechnen".</p>
+          <p class="text-xs mt-4 text-slate-600">Vergleicht ETF-Sparplan, ETF-Rentenversicherung und das neue Altersvorsorgedepot (ab 2027).</p>
+        </div>
+
+        <!-- Ergebnisse -->
+        <template x-if="$store.av.results">
+          <div class="space-y-5">
+
+            <!-- KPI Karten -->
+            <div class="grid grid-cols-2 lg:grid-cols-3 gap-3">
+              <div class="bg-surface-800 rounded-xl border border-surface-700 p-4">
+                <div class="text-xs text-slate-400 mb-1">ETF-Sparplan (netto)</div>
+                <div class="text-xl font-bold text-green-400" x-text="fmt.formatEur($store.av.results.etf?.netPayout)"></div>
+                <div class="text-xs text-slate-500" x-text="'Kosten: ' + fmt.formatEur($store.av.results.etf?.totalCosts) + ' | Steuer: ' + fmt.formatEur($store.av.results.etf?.totalTax)"></div>
+              </div>
+              <div class="bg-surface-800 rounded-xl border border-surface-700 p-4">
+                <div class="text-xs text-slate-400 mb-1">Rentenversicherung (netto)</div>
+                <div class="text-xl font-bold text-purple-400" x-text="fmt.formatEur($store.av.results.rv?.netPayout)"></div>
+                <div class="text-xs text-slate-500" x-text="'Kosten: ' + fmt.formatEur($store.av.results.rv?.totalCosts) + ' | Steuer: ' + fmt.formatEur($store.av.results.rv?.totalTax)"></div>
+              </div>
+              <div class="bg-surface-800 rounded-xl border border-surface-700 p-4">
+                <div class="text-xs text-slate-400 mb-1">Altersvorsorgedepot (netto)</div>
+                <div class="text-xl font-bold text-cyan-400" x-text="fmt.formatEur($store.av.results.avd?.netPayout)"></div>
+                <div class="text-xs text-green-400" x-text="'+ ' + fmt.formatEur($store.av.results.avd?.totalSubsidies) + ' Zulagen'"></div>
+              </div>
+              <!-- Rürup -->
+              <div x-show="$store.av.results.ruerup" class="bg-surface-800 rounded-xl border border-pink-500/20 p-4">
+                <div class="text-xs text-slate-400 mb-1">Rürup-Rente (gesamt)</div>
+                <div class="text-xl font-bold text-pink-400" x-text="fmt.formatEur($store.av.results.ruerup?.netPayout)"></div>
+                <div class="text-xs text-slate-500">
+                  <span x-text="'Monatl. Rente: ' + fmt.formatEur($store.av.results.ruerup?.monthlyPensionGross)"></span><br>
+                  <span class="text-green-400" x-text="'Steuerersparnis: ' + fmt.formatEur($store.av.results.ruerup?.totalTaxDeduction)"></span>
+                </div>
+              </div>
+              <!-- Riester -->
+              <div x-show="$store.av.results.riester" class="bg-surface-800 rounded-xl border border-slate-500/20 p-4">
+                <div class="text-xs text-slate-400 mb-1">Riester-Rente (netto)</div>
+                <div class="text-xl font-bold text-slate-300" x-text="fmt.formatEur($store.av.results.riester?.netPayout)"></div>
+                <div class="text-xs text-green-400" x-text="'+ ' + fmt.formatEur($store.av.results.riester?.totalSubsidies) + ' Zulagen'"></div>
+              </div>
+              <div class="bg-surface-800 rounded-xl border border-brand/30 p-4">
+                <div class="text-xs text-slate-400 mb-1">Beste Option</div>
+                <div class="text-xl font-bold text-brand" x-text="$store.av.results.best?.productShort"></div>
+                <div class="text-xs text-brand/70" x-text="fmt.formatEur($store.av.results.best?.netPayout) + ' netto'"></div>
+              </div>
+            </div>
+
+            <!-- Kombi-Strategie (wenn Sparrate > 150€) -->
+            <div x-show="$store.av.results.kombi"
+                 class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
+              <div class="flex items-center gap-2 mb-2">
+                <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+                <span class="text-sm font-semibold text-amber-400">Kombi-Empfehlung</span>
+              </div>
+              <div class="text-sm text-slate-300" x-text="$store.av.results.kombi?.splitInfo"></div>
+              <div class="text-lg font-bold text-amber-400 mt-1" x-text="'Netto: ' + fmt.formatEur($store.av.results.kombi?.netPayout)"></div>
+              <div class="text-xs text-slate-500 mt-1">
+                Bei einer Sparrate über 150 €/Monat werden die ersten 150 € im Altersvorsorgedepot (mit Zulagen) angelegt und der Rest im besten Zweitprodukt.
+              </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="flex gap-1 overflow-x-auto pb-1 scrollbar-hide">
+              <template x-for="tab in $store.av.tabs" :key="tab.id">
+                <button @click="$store.av.ui.activeTab = tab.id"
+                        class="px-4 py-2 text-sm rounded-lg whitespace-nowrap transition-colors"
+                        :class="$store.av.ui.activeTab === tab.id ? 'bg-brand/20 text-brand font-medium' : 'text-slate-400 hover:text-slate-200 hover:bg-surface-700'"
+                        x-text="tab.label"></button>
+              </template>
+            </div>
+
+            <!-- Tab: Vermögensentwicklung -->
+            <div x-show="$store.av.ui.activeTab === 'vermoegen'" class="space-y-4" x-data="{ showFormulas: false, activeTable: 'etf' }">
+              <!-- Chart -->
+              <div class="bg-surface-800 rounded-xl border border-surface-700 p-5">
+                <h2 class="text-lg font-semibold mb-4">Vermögensentwicklung über die Jahre</h2>
+                <div id="growthChart" style="min-height: 380px;"></div>
+                <div class="mt-3 grid grid-cols-3 gap-2 text-xs">
+                  <div class="bg-surface-900 rounded-lg p-2">
+                    <span class="text-slate-400">Kumul. Kosten ETF:</span>
+                    <span class="text-red-400 font-medium ml-1" x-text="fmt.formatEur($store.av.results.etf?.totalCosts)"></span>
+                  </div>
+                  <div class="bg-surface-900 rounded-lg p-2">
+                    <span class="text-slate-400">Kumul. Kosten RV:</span>
+                    <span class="text-red-400 font-medium ml-1" x-text="fmt.formatEur($store.av.results.rv?.totalCosts)"></span>
+                  </div>
+                  <div class="bg-surface-900 rounded-lg p-2">
+                    <span class="text-slate-400">Kumul. Kosten AVD:</span>
+                    <span class="text-red-400 font-medium ml-1" x-text="fmt.formatEur($store.av.results.avd?.totalCosts)"></span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Jahrestabellen -->
+              <div class="bg-surface-800 rounded-xl border border-surface-700 p-5">
+                <!-- Tab-Auswahl + Formeln-Toggle -->
+                <div class="flex items-center justify-between mb-3">
+                  <div class="flex gap-1">
+                    <button @click="activeTable = 'etf'" class="px-3 py-1.5 text-xs rounded-lg transition-colors" :class="activeTable === 'etf' ? 'bg-green-500/20 text-green-400 font-medium' : 'text-slate-400 hover:text-slate-200'">ETF-Sparplan</button>
+                    <button @click="activeTable = 'rv'" class="px-3 py-1.5 text-xs rounded-lg transition-colors" :class="activeTable === 'rv' ? 'bg-purple-500/20 text-purple-400 font-medium' : 'text-slate-400 hover:text-slate-200'">Rentenversicherung</button>
+                    <button @click="activeTable = 'avd'" class="px-3 py-1.5 text-xs rounded-lg transition-colors" :class="activeTable === 'avd' ? 'bg-cyan-500/20 text-cyan-400 font-medium' : 'text-slate-400 hover:text-slate-200'">Altersvorsorgedepot</button>
+                  </div>
+                  <label class="flex items-center gap-1.5 cursor-pointer select-none">
+                    <span class="text-xs text-slate-500">Rechenweg</span>
+                    <button @click="showFormulas = !showFormulas" class="relative w-8 h-4 rounded-full transition-colors" :class="showFormulas ? 'bg-brand' : 'bg-surface-600'">
+                      <span class="absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform duration-200" :class="showFormulas ? 'translate-x-4' : ''"></span>
+                    </button>
+                  </label>
+                </div>
+
+                <!-- === ETF-Sparplan Tabelle === -->
+                <div x-show="activeTable === 'etf'">
+                  <div class="overflow-x-auto max-h-96 overflow-y-auto">
+                    <table class="w-full text-xs">
+                      <thead class="sticky top-0 bg-surface-800 z-10">
+                        <tr class="text-slate-400 border-b border-surface-700">
+                          <th class="text-left py-2 px-1">Jahr</th>
+                          <th class="text-left py-2 px-1">Alter</th>
+                          <th class="text-right py-2 px-1"><span class="tooltip-trigger" tabindex="0">Beitrag<span class="tooltip-content">Deine jährliche Einzahlung in den ETF-Sparplan.</span></span></th>
+                          <th class="text-right py-2 px-1"><span class="tooltip-trigger" tabindex="0">Bruttorendite<span class="tooltip-content">Gesamtrendite vor Abzug der Fondskosten (TER). Berechnung: (Vorjahresbestand + halber Jahresbeitrag) × Renditesatz.</span></span></th>
+                          <th class="text-right py-2 px-1"><span class="tooltip-trigger" tabindex="0">TER-Kosten<span class="tooltip-content">Total Expense Ratio — die jährliche Verwaltungsgebühr des ETF. Wird automatisch vom Fondsvermögen abgezogen.</span></span></th>
+                          <th class="text-right py-2 px-1"><span class="tooltip-trigger" tabindex="0">VP brutto<span class="tooltip-content">Vorabpauschale: Jährliche Steuervorauszahlung auf unrealisierte Gewinne. Formel: Fondswert_Jahresanfang × Basiszins × 0,7, gedeckelt auf den tatsächlichen Jahresgewinn. Bei kleinem Portfolio ist sie so niedrig, dass der Sparerpauschbetrag (1.000 €/Jahr) sie vollständig abdeckt → VP-Steuer = 0.</span></span></th>
+                          <th class="text-right py-2 px-1"><span class="tooltip-trigger" tabindex="0">VP-Steuer<span class="tooltip-content">Steuer auf die Vorabpauschale. Berechnung: (VP brutto × 70% Teilfreistellung − Sparerpauschbetrag) × 26,375%. Ist 0,00 € solange die steuerpflichtige VP unter dem Sparerpauschbetrag (1.000 €) liegt — das ist korrekt und KEIN Fehler.</span></span></th>
+                          <th class="text-right py-2 px-1"><span class="tooltip-trigger" tabindex="0">Kum. VP-Steuer<span class="tooltip-content">Summe aller bisher gezahlten VP-Steuern. Wird beim Verkauf als Steuergutschrift angerechnet (kein doppeltes Besteuern).</span></span></th>
+                          <th class="text-right py-2 px-1 font-medium">Portfolio</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <template x-for="s in $store.av.results.etf?.snapshots || []" :key="s.year">
+                          <tr class="border-b border-surface-700/30 hover:bg-surface-700/20">
+                            <td class="py-1.5 px-1 text-slate-500" x-text="s.year"></td>
+                            <td class="py-1.5 px-1 text-slate-400" x-text="s.age"></td>
+                            <td class="py-1.5 px-1 text-right text-slate-300" x-text="fmt.formatEur(s.contribution)"></td>
+                            <td class="py-1.5 px-1 text-right text-green-400" :title="showFormulas ? 'Berechnung: (' + fmt.formatEur(s.portfolioValue - s.contribution - s.grossReturn + s.costs) + ' + ' + fmt.formatEur(s.contribution) + '/2) × ' + $store.av.inputs.expectedReturn + '% = ' + fmt.formatEur(s.grossReturn) : ''" x-text="fmt.formatEur(s.grossReturn)"></td>
+                            <td class="py-1.5 px-1 text-right text-red-400" :title="showFormulas ? 'TER: Bemessungsgrdl. × ' + $store.av.inputs.etfTer + '% = ' + fmt.formatEur(s.costs) : ''" x-text="fmt.formatEur(s.costs)"></td>
+                            <td class="py-1.5 px-1 text-right text-amber-400" :title="showFormulas ? 'VP = Vorjahreswert × ' + $store.av.inputs.basiszins + '% × 0,7 (gedeckelt auf Jahresgewinn)' : ''" x-text="fmt.formatEur(s.vorabpauschaleGross)"></td>
+                            <td class="py-1.5 px-1 text-right" :class="s.vorabpauschaleTax > 0 ? 'text-purple-400' : 'text-slate-600'" :title="showFormulas ? 'Steuerpfl. VP: ' + fmt.formatEur(s.vorabpauschaleTaxable) + ' − SPB ' + fmt.formatEur(s.vorabpauschaleSPB) + ' = ' + fmt.formatEur(Math.max(0, s.vorabpauschaleTaxable - s.vorabpauschaleSPB)) + ' × 26,375%' : (s.vorabpauschaleTax === 0 ? 'VP liegt unter dem Sparerpauschbetrag (1.000 €) → keine Steuer fällig' : '')" x-text="fmt.formatEur(s.vorabpauschaleTax)"></td>
+                            <td class="py-1.5 px-1 text-right text-purple-300" x-text="fmt.formatEur(s.cumulativeVPTax)"></td>
+                            <td class="py-1.5 px-1 text-right text-white font-medium" x-text="fmt.formatEur(s.portfolioValue)"></td>
+                          </tr>
+                        </template>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div class="mt-2 text-xs text-slate-500">
+                    VP-Steuer = 0,00 € in den ersten Jahren ist korrekt: Solange die steuerpflichtige Vorabpauschale unter dem Sparerpauschbetrag (1.000 €/Jahr) liegt, fällt keine Steuer an. Die VP-Steuer wird extern bezahlt und beim Verkauf als Steuergutschrift angerechnet.
+                  </div>
+                </div>
+
+                <!-- === Rentenversicherung Tabelle === -->
+                <div x-show="activeTable === 'rv'">
+                  <div class="overflow-x-auto max-h-96 overflow-y-auto">
+                    <table class="w-full text-xs">
+                      <thead class="sticky top-0 bg-surface-800 z-10">
+                        <tr class="text-slate-400 border-b border-surface-700">
+                          <th class="text-left py-2 px-1">Jahr</th>
+                          <th class="text-left py-2 px-1">Alter</th>
+                          <th class="text-right py-2 px-1"><span class="tooltip-trigger" tabindex="0">Beitrag<span class="tooltip-content">Deine jährliche Einzahlung in die ETF-Rentenversicherung.</span></span></th>
+                          <th class="text-right py-2 px-1"><span class="tooltip-trigger" tabindex="0">Bruttorendite<span class="tooltip-content">Rendite vor Abzug der Versicherungskosten. Berechnung: (Vorjahresbestand + halber Beitrag) × Renditesatz.</span></span></th>
+                          <th class="text-right py-2 px-1"><span class="tooltip-trigger" tabindex="0">Versicherungskosten<span class="tooltip-content">Jährliche Gesamtkosten der Rentenversicherung (Verwaltung + ggf. ETF-TER). Werden vom Fondsvermögen abgezogen.</span></span></th>
+                          <th class="text-right py-2 px-1"><span class="tooltip-trigger" tabindex="0">Kum. Kosten<span class="tooltip-content">Summe aller bisherigen Versicherungskosten. Zeigt, wie stark die Kosten das Vermögen bremsen.</span></span></th>
+                          <th class="text-right py-2 px-1"><span class="tooltip-trigger" tabindex="0">Steuer<span class="tooltip-content">In der Ansparphase fällt KEINE Steuer an — das ist der große Vorteil der Rentenversicherung (Steuerstundung). Keine Vorabpauschale, steuerfreies Umschichten.</span></span></th>
+                          <th class="text-right py-2 px-1 font-medium">Portfolio</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <template x-for="s in $store.av.results.rv?.snapshots || []" :key="s.year">
+                          <tr class="border-b border-surface-700/30 hover:bg-surface-700/20">
+                            <td class="py-1.5 px-1 text-slate-500" x-text="s.year"></td>
+                            <td class="py-1.5 px-1 text-slate-400" x-text="s.age"></td>
+                            <td class="py-1.5 px-1 text-right text-slate-300" x-text="fmt.formatEur(s.contribution)"></td>
+                            <td class="py-1.5 px-1 text-right text-green-400" :title="showFormulas ? 'Berechnung: Bemessungsgrdl. × ' + $store.av.inputs.expectedReturn + '%' : ''" x-text="fmt.formatEur(s.grossReturn)"></td>
+                            <td class="py-1.5 px-1 text-right text-red-400" :title="showFormulas ? 'Anbieterkosten: Bemessungsgrdl. × ' + (PROVIDERS.find(p => p.id === $store.av.inputs.selectedProviderId)?.totalCostRate * 100).toFixed(2) + '%' : ''" x-text="fmt.formatEur(s.costs)"></td>
+                            <td class="py-1.5 px-1 text-right text-red-300" x-text="fmt.formatEur(s.cumulativeCosts)"></td>
+                            <td class="py-1.5 px-1 text-right text-green-600" title="Keine Steuer in der Ansparphase (Steuerstundung)">0,00 €</td>
+                            <td class="py-1.5 px-1 text-right text-white font-medium" x-text="fmt.formatEur(s.portfolioValue)"></td>
+                          </tr>
+                        </template>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div class="mt-2 text-xs text-slate-500">
+                    In der gesamten Ansparphase fällt KEINE Steuer an (Steuerstundung). Die Steuer wird erst bei Auszahlung fällig — dann aber mit dem günstigeren Halbeinkünfteverfahren (nur 42,5% der Erträge steuerpflichtig).
+                  </div>
+                </div>
+
+                <!-- === Altersvorsorgedepot Tabelle === -->
+                <div x-show="activeTable === 'avd'">
+                  <div class="overflow-x-auto max-h-96 overflow-y-auto">
+                    <table class="w-full text-xs">
+                      <thead class="sticky top-0 bg-surface-800 z-10">
+                        <tr class="text-slate-400 border-b border-surface-700">
+                          <th class="text-left py-2 px-1">Jahr</th>
+                          <th class="text-left py-2 px-1">Alter</th>
+                          <th class="text-right py-2 px-1"><span class="tooltip-trigger" tabindex="0">Eigenbeitrag<span class="tooltip-content">Dein jährlicher Eigenbeitrag ins Altersvorsorgedepot (max. 1.800 €/Jahr).</span></span></th>
+                          <th class="text-right py-2 px-1"><span class="tooltip-trigger" tabindex="0">Zulagen<span class="tooltip-content">Staatliche Zulagen: 50% auf erste 360 € + 25% auf nächste 1.440 € = max. 540 €/Jahr Grundzulage + 300 €/Kind/Jahr.</span></span></th>
+                          <th class="text-right py-2 px-1"><span class="tooltip-trigger" tabindex="0">Steuerabzug<span class="tooltip-content">Steuerersparnis durch Absetzbarkeit als Sonderausgaben: Eigenbeitrag × dein persönlicher Steuersatz. Dieses Geld bekommst du über die Steuererklärung zurück.</span></span></th>
+                          <th class="text-right py-2 px-1"><span class="tooltip-trigger" tabindex="0">Bruttorendite<span class="tooltip-content">Rendite vor Abzug der Depotkosten.</span></span></th>
+                          <th class="text-right py-2 px-1"><span class="tooltip-trigger" tabindex="0">Depotkosten<span class="tooltip-content">Jährliche Kosten des Altersvorsorgedepots (Verwaltung + ETF-Kosten).</span></span></th>
+                          <th class="text-right py-2 px-1 font-medium">Portfolio</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <template x-for="s in $store.av.results.avd?.snapshots || []" :key="s.year">
+                          <tr class="border-b border-surface-700/30 hover:bg-surface-700/20">
+                            <td class="py-1.5 px-1 text-slate-500" x-text="s.year"></td>
+                            <td class="py-1.5 px-1 text-slate-400" x-text="s.age"></td>
+                            <td class="py-1.5 px-1 text-right text-slate-300" x-text="fmt.formatEur(s.contribution)"></td>
+                            <td class="py-1.5 px-1 text-right text-cyan-400" :title="showFormulas ? 'Grundzulage: ' + fmt.formatEur(s.subsidyDetail?.grundzulage || 0) + ' + Kinderzulage: ' + fmt.formatEur(s.subsidyDetail?.kinderzulage || 0) + (s.subsidyDetail?.bonus > 0 ? ' + Bonus: ' + fmt.formatEur(s.subsidyDetail.bonus) : '') : ''" x-text="fmt.formatEur(s.stateSubsidy)"></td>
+                            <td class="py-1.5 px-1 text-right text-green-400" :title="showFormulas ? fmt.formatEur(s.contribution) + ' × ' + $store.av.inputs.personalTaxRateCurrent + '% Steuersatz' : ''" x-text="fmt.formatEur(s.taxDeduction)"></td>
+                            <td class="py-1.5 px-1 text-right text-green-400" x-text="fmt.formatEur(s.grossReturn)"></td>
+                            <td class="py-1.5 px-1 text-right text-red-400" x-text="fmt.formatEur(s.costs)"></td>
+                            <td class="py-1.5 px-1 text-right text-white font-medium" x-text="fmt.formatEur(s.portfolioValue)"></td>
+                          </tr>
+                        </template>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div class="mt-2 text-xs text-slate-500">
+                    Keine Steuer in der Ansparphase (wie bei der RV). Beiträge + Zulagen fließen vollständig ins Depot. Die Steuerersparnis (Sonderausgabenabzug) bekommst du jährlich über die Steuererklärung zurück. Bei Auszahlung wird das GESAMTE Kapital mit deinem persönlichen Steuersatz im Alter besteuert.
+                  </div>
+                </div>
+
+                <div class="mt-3 text-xs text-slate-600" x-show="showFormulas">
+                  Rechenweg aktiv: Fahre mit der Maus über die Zahlenwerte, um die Berechnungsformel mit deinen konkreten Werten zu sehen.
+                </div>
+              </div>
+            </div>
+
+            <!-- Tab: Kostenvergleich -->
+            <div x-show="$store.av.ui.activeTab === 'kosten'" class="bg-surface-800 rounded-xl border border-surface-700 p-5">
+              <h2 class="text-lg font-semibold mb-4">Kostenvergleich</h2>
+              <div id="costChart" style="min-height: 300px;"></div>
+
+              <!-- Detail-Tabelle -->
+              <div class="mt-4 overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead>
+                    <tr class="text-xs text-slate-400 border-b border-surface-700">
+                      <th class="text-left py-2 px-2"></th>
+                      <th class="text-right py-2 px-2 text-green-400">ETF-Sparplan</th>
+                      <th class="text-right py-2 px-2 text-purple-400">Rentenvers.</th>
+                      <th class="text-right py-2 px-2 text-cyan-400">Altersvorsorge</th>
+                      <th class="text-right py-2 px-2 text-pink-400" x-show="$store.av.results.ruerup">Rürup</th>
+                      <th class="text-right py-2 px-2 text-slate-300" x-show="$store.av.results.riester">Riester</th>
+                    </tr>
+                  </thead>
+                  <tbody class="text-xs">
+                    <tr class="border-b border-surface-700/50">
+                      <td class="py-2 px-2 text-slate-400">Eingezahlt</td>
+                      <td class="py-2 px-2 text-right" x-text="fmt.formatEur($store.av.results.etf?.totalContributed)"></td>
+                      <td class="py-2 px-2 text-right" x-text="fmt.formatEur($store.av.results.rv?.totalContributed)"></td>
+                      <td class="py-2 px-2 text-right" x-text="fmt.formatEur($store.av.results.avd?.totalContributed)"></td>
+                      <td class="py-2 px-2 text-right" x-show="$store.av.results.ruerup" x-text="fmt.formatEur($store.av.results.ruerup?.totalContributed)"></td>
+                      <td class="py-2 px-2 text-right" x-show="$store.av.results.riester" x-text="fmt.formatEur($store.av.results.riester?.totalContributed)"></td>
+                    </tr>
+                    <tr class="border-b border-surface-700/50">
+                      <td class="py-2 px-2 text-slate-400">Staatliche Zulagen</td>
+                      <td class="py-2 px-2 text-right text-slate-500">—</td>
+                      <td class="py-2 px-2 text-right text-slate-500">—</td>
+                      <td class="py-2 px-2 text-right text-green-400" x-text="fmt.formatEur($store.av.results.avd?.totalSubsidies)"></td>
+                      <td class="py-2 px-2 text-right text-slate-500" x-show="$store.av.results.ruerup">—</td>
+                      <td class="py-2 px-2 text-right text-green-400" x-show="$store.av.results.riester" x-text="fmt.formatEur($store.av.results.riester?.totalSubsidies)"></td>
+                    </tr>
+                    <tr class="border-b border-surface-700/50">
+                      <td class="py-2 px-2 text-slate-400">Steuerersparnis Ansparphase</td>
+                      <td class="py-2 px-2 text-right text-slate-500">—</td>
+                      <td class="py-2 px-2 text-right text-slate-500">—</td>
+                      <td class="py-2 px-2 text-right text-green-400" x-text="fmt.formatEur($store.av.results.avd?.totalTaxDeduction)"></td>
+                      <td class="py-2 px-2 text-right text-green-400" x-show="$store.av.results.ruerup" x-text="fmt.formatEur($store.av.results.ruerup?.totalTaxDeduction)"></td>
+                      <td class="py-2 px-2 text-right text-green-400" x-show="$store.av.results.riester" x-text="fmt.formatEur($store.av.results.riester?.totalTaxDeduction)"></td>
+                    </tr>
+                    <tr class="border-b border-surface-700/50">
+                      <td class="py-2 px-2 text-slate-400">Vermögen bei Rente</td>
+                      <td class="py-2 px-2 text-right" x-text="fmt.formatEur($store.av.results.etf?.portfolioAtRetirement)"></td>
+                      <td class="py-2 px-2 text-right" x-text="fmt.formatEur($store.av.results.rv?.portfolioAtRetirement)"></td>
+                      <td class="py-2 px-2 text-right" x-text="fmt.formatEur($store.av.results.avd?.portfolioAtRetirement)"></td>
+                      <td class="py-2 px-2 text-right" x-show="$store.av.results.ruerup" x-text="fmt.formatEur($store.av.results.ruerup?.portfolioAtRetirement)"></td>
+                      <td class="py-2 px-2 text-right" x-show="$store.av.results.riester" x-text="fmt.formatEur($store.av.results.riester?.portfolioAtRetirement)"></td>
+                    </tr>
+                    <tr class="border-b border-surface-700/50">
+                      <td class="py-2 px-2 text-slate-400">Gesamtkosten</td>
+                      <td class="py-2 px-2 text-right text-red-400" x-text="fmt.formatEur($store.av.results.etf?.totalCosts)"></td>
+                      <td class="py-2 px-2 text-right text-red-400" x-text="fmt.formatEur($store.av.results.rv?.totalCosts)"></td>
+                      <td class="py-2 px-2 text-right text-red-400" x-text="fmt.formatEur($store.av.results.avd?.totalCosts)"></td>
+                      <td class="py-2 px-2 text-right text-red-400" x-show="$store.av.results.ruerup" x-text="fmt.formatEur($store.av.results.ruerup?.totalCosts)"></td>
+                      <td class="py-2 px-2 text-right text-red-400" x-show="$store.av.results.riester" x-text="fmt.formatEur($store.av.results.riester?.totalCosts)"></td>
+                    </tr>
+                    <tr class="border-b border-surface-700/50">
+                      <td class="py-2 px-2 text-slate-400">Gesamtsteuern</td>
+                      <td class="py-2 px-2 text-right text-purple-400" x-text="fmt.formatEur($store.av.results.etf?.totalTax)"></td>
+                      <td class="py-2 px-2 text-right text-purple-400" x-text="fmt.formatEur($store.av.results.rv?.totalTax)"></td>
+                      <td class="py-2 px-2 text-right text-purple-400" x-text="fmt.formatEur($store.av.results.avd?.totalTax)"></td>
+                      <td class="py-2 px-2 text-right text-purple-400" x-show="$store.av.results.ruerup" x-text="fmt.formatEur($store.av.results.ruerup?.totalTax)"></td>
+                      <td class="py-2 px-2 text-right text-purple-400" x-show="$store.av.results.riester" x-text="fmt.formatEur($store.av.results.riester?.totalTax)"></td>
+                    </tr>
+                    <tr class="font-medium">
+                      <td class="py-2 px-2 text-slate-300">Netto-Auszahlung</td>
+                      <td class="py-2 px-2 text-right text-green-400" x-text="fmt.formatEur($store.av.results.etf?.netPayout)"></td>
+                      <td class="py-2 px-2 text-right text-purple-400" x-text="fmt.formatEur($store.av.results.rv?.netPayout)"></td>
+                      <td class="py-2 px-2 text-right text-cyan-400" x-text="fmt.formatEur($store.av.results.avd?.netPayout)"></td>
+                      <td class="py-2 px-2 text-right text-pink-400" x-show="$store.av.results.ruerup" x-text="fmt.formatEur($store.av.results.ruerup?.netPayout)"></td>
+                      <td class="py-2 px-2 text-right text-slate-300" x-show="$store.av.results.riester" x-text="fmt.formatEur($store.av.results.riester?.netPayout)"></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="mt-3 text-xs text-slate-500" x-show="$store.av.results.ruerup">
+                <strong class="text-pink-400">Rürup-Hinweis:</strong> Netto-Wert = 20 Jahre Rente (ab <span x-text="$store.av.results.ruerup?.rentenbeginnJahr"></span>) + Steuerersparnis Ansparphase. Tatsächliche Rente hängt von Lebenserwartung ab. Besteuerungsanteil im Rentenjahr: <span x-text="($store.av.results.ruerup?.besteuerungsanteil * 100).toFixed(0) + '%'"></span>.
+              </div>
+            </div>
+
+            <!-- Tab: Steuervergleich -->
+            <div x-show="$store.av.ui.activeTab === 'steuern'" class="bg-surface-800 rounded-xl border border-surface-700 p-5">
+              <h2 class="text-lg font-semibold mb-4">Steuervergleich</h2>
+              <div id="taxChart" style="min-height: 300px;"></div>
+
+              <!-- Erklärung pro Produkt -->
+              <div class="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <div class="bg-surface-900 rounded-lg p-3">
+                  <div class="text-sm font-medium text-green-400 mb-2">ETF-Sparplan</div>
+                  <div class="text-xs text-slate-400 space-y-1">
+                    <p><strong>Ansparphase:</strong> Jährliche Vorabpauschale auf unrealisierte Gewinne. 30% Teilfreistellung für Aktienfonds.</p>
+                    <p><strong>Auszahlung:</strong> Abgeltungssteuer (26,375%) auf Gewinne nach Teilfreistellung (effektiv ~18,5%).</p>
+                    <p><strong>Vorteil:</strong> Sparerpauschbetrag (1.000 €/Jahr) nutzbar. Maximale Flexibilität.</p>
+                  </div>
+                </div>
+                <div class="bg-surface-900 rounded-lg p-3">
+                  <div class="text-sm font-medium text-purple-400 mb-2">Rentenversicherung</div>
+                  <div class="text-xs text-slate-400 space-y-1">
+                    <p><strong>Ansparphase:</strong> Keine Vorabpauschale! Steuerfreies Umschichten. Voller Zinseszins.</p>
+                    <p><strong>Auszahlung (12/62-Regel):</strong> Nur 42,5% der Erträge steuerpflichtig (Halbeinkünfte + Teilfreistellung).</p>
+                    <p><strong>Vorteil:</strong> Steuerstundung über Jahrzehnte. Niedrigerer Steuersatz im Alter.</p>
+                  </div>
+                </div>
+                <div class="bg-surface-900 rounded-lg p-3">
+                  <div class="text-sm font-medium text-cyan-400 mb-2">Altersvorsorgedepot</div>
+                  <div class="text-xs text-slate-400 space-y-1">
+                    <p><strong>Ansparphase:</strong> Keine Kapitalertragsteuer. Beiträge als Sonderausgaben absetzbar.</p>
+                    <p><strong>Auszahlung:</strong> Gesamtes Kapital wird nachgelagert besteuert (persönl. Steuersatz). Keine Teilfreistellung!</p>
+                    <p><strong>Vorteil:</strong> Staatliche Zulagen (bis 540 €/Jahr + 300 €/Kind). Steuerersparnis heute.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Ausführliche Einschätzung & Hinweise -->
+            <div class="bg-surface-800 rounded-xl border border-surface-700 p-5">
+              <h3 class="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
+                <svg class="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                </svg>
+                Fachliche Einschätzung & Empfehlungen
+              </h3>
+              <div class="space-y-3" x-data="{
+                get tips() {
+                  const r = $store.av.results;
+                  const inp = $store.av.inputs;
+                  if (!r) return [];
+                  const t = [];
+                  const years = inp.retirementAge - inp.currentAge;
+                  const prov = PROVIDERS.find(p => p.id === inp.selectedProviderId);
+
+                  // 1. Hauptempfehlung mit Begründung
+                  const diff_etf_rv = r.etf.netPayout - r.rv.netPayout;
+                  const diff_etf_avd = r.etf.netPayout - (r.avd?.netPayoutInclDeductions || r.avd.netPayout);
+                  t.push({
+                    severity: 'green',
+                    title: '📊 Ergebnis: ' + r.best.product + ' gewinnt mit ' + fmt.formatEur(r.best.netPayout) + ' netto',
+                    message: 'Bei ' + fmt.formatEur(inp.monthlyAmount) + '/Monat über ' + years + ' Jahre erzielst du mit dem ' + r.best.product + ' das höchste Netto-Ergebnis nach Abzug ALLER Kosten und Steuern. ' +
+                      'ETF-Sparplan: ' + fmt.formatEur(r.etf.netPayout) + ' | Rentenversicherung: ' + fmt.formatEur(r.rv.netPayout) + ' | Altersvorsorgedepot: ' + fmt.formatEur(r.avd?.netPayoutInclDeductions || r.avd?.netPayout) + '. ' +
+                      'Die Differenz zwischen der besten und schlechtesten Option beträgt ' + fmt.formatEur(Math.abs(r.best.netPayout - Math.min(r.etf.netPayout, r.rv.netPayout, r.avd?.netPayout || Infinity))) + ' — das kann über den Daumen gepeilt der Gegenwert eines Kleinwagens sein.'
+                  });
+
+                  // 2. Steuer-Analyse (Verbraucherzentrale-Perspektive)
+                  const etfEffTax = r.etf.totalTax;
+                  const rvEffTax = r.rv.totalTax;
+                  const avdEffTax = r.avd?.totalTax || 0;
+                  const lowestTax = Math.min(etfEffTax, rvEffTax, avdEffTax > 0 ? avdEffTax : Infinity);
+                  const lowestTaxName = lowestTax === etfEffTax ? 'ETF-Sparplan' : lowestTax === rvEffTax ? 'Rentenversicherung' : 'Altersvorsorgedepot';
+
+                  let taxMsg = 'Die Steuerbelastung unterscheidet sich erheblich: ETF-Sparplan zahlt insgesamt ' + fmt.formatEur(etfEffTax) + ' Steuern (davon ' + fmt.formatEur(r.etf.totalVorabpauschaleTax) + ' Vorabpauschale jährlich + ' + fmt.formatEur(r.etf.payoutTax) + ' bei Auszahlung). ';
+                  taxMsg += 'Die Rentenversicherung zahlt nur ' + fmt.formatEur(rvEffTax) + ' — alles erst bei Auszahlung, dank Steuerstundung und Halbeinkünfteverfahren (nur 42,5% der Erträge steuerpflichtig). ';
+                  taxMsg += 'Das Altersvorsorgedepot hat mit ' + fmt.formatEur(avdEffTax) + ' die höchste Steuerlast, weil das GESAMTE Kapital bei Auszahlung mit deinem persönlichen Steuersatz (' + inp.personalTaxRateRetirement + '%) besteuert wird — nicht nur die Gewinne.';
+
+                  t.push({ severity: 'blue', title: '🏛️ Steuervergleich im Detail', message: taxMsg });
+
+                  // 3. Kosten-Warnung (Verbraucherzentrale: Kosten sind entscheidend!)
+                  const costDiff = r.rv.totalCosts - r.etf.totalCosts;
+                  let costMsg = 'Die Verbraucherzentrale betont: Kosten sind der wichtigste Faktor bei der Altersvorsorge. ';
+                  costMsg += 'Über ' + years + ' Jahre zahlst du: ETF-Sparplan ' + fmt.formatEur(r.etf.totalCosts) + ' (TER ' + inp.etfTer + '%) | Rentenversicherung ' + fmt.formatEur(r.rv.totalCosts) + ' (' + (prov ? (prov.totalCostRate * 100).toFixed(2) : '?') + '% p.a.) | Altersvorsorgedepot ' + fmt.formatEur(r.avd?.totalCosts) + ' (' + inp.avdCostRate + '% p.a.). ';
+                  if (costDiff > 5000) {
+                    costMsg += 'Die Rentenversicherung kostet ' + fmt.formatEur(costDiff) + ' mehr als der ETF-Sparplan. Das muss durch den Steuervorteil des Halbeinkünfteverfahrens aufgewogen werden. ';
+                    if (r.rv.netPayout > r.etf.netPayout) {
+                      costMsg += 'In deinem Fall gleicht der Steuervorteil die Mehrkosten aus — die RV lohnt sich trotz höherer Gebühren.';
+                    } else {
+                      costMsg += 'In deinem Fall reicht der Steuervorteil NICHT aus — der günstigere ETF-Sparplan gewinnt.';
+                    }
+                  }
+                  t.push({ severity: costDiff > 10000 ? 'amber' : 'blue', title: '💰 Kostenfaktor: ' + fmt.formatEur(r.etf.totalCosts + r.rv.totalCosts + (r.avd?.totalCosts || 0)) + ' Gesamtgebühren', message: costMsg });
+
+                  // 4. Zulagen und Förderung AVD
+                  if (r.avd?.totalSubsidies > 500) {
+                    let zulagenMsg = 'Das Altersvorsorgedepot erhält über ' + years + ' Jahre insgesamt ' + fmt.formatEur(r.avd.totalSubsidies) + ' an staatlichen Zulagen (Grundzulage';
+                    if (inp.numberOfChildren > 0) zulagenMsg += ' + ' + fmt.formatEur(inp.numberOfChildren * 300) + '/Jahr Kinderzulage für ' + inp.numberOfChildren + (inp.numberOfChildren === 1 ? ' Kind' : ' Kinder');
+                    zulagenMsg += '). Zusätzlich sparst du über die Sonderausgaben-Absetzbarkeit ' + fmt.formatEur(r.avd.totalTaxDeduction) + ' an Einkommensteuer während der Ansparphase. ';
+                    zulagenMsg += 'Achtung: Bei der Auszahlung wird das gesamte angesparte Kapital besteuert (nachgelagerte Besteuerung). ';
+                    zulagenMsg += 'Die Zulagen sind nur dann ein echter Vorteil, wenn dein Steuersatz im Alter (' + inp.personalTaxRateRetirement + '%) deutlich unter deinem heutigen Satz (' + inp.personalTaxRateCurrent + '%) liegt. ';
+                    if (inp.personalTaxRateRetirement >= inp.personalTaxRateCurrent - 5) {
+                      zulagenMsg += 'Bei deinen Angaben ist der Steuersatz-Unterschied gering — der Vorteil der Zulagen wird durch die nachgelagerte Besteuerung teilweise aufgezehrt.';
+                    }
+                    t.push({ severity: 'blue', title: '🎁 Staatliche Förderung: ' + fmt.formatEur(r.avd.totalSubsidies) + ' Zulagen + ' + fmt.formatEur(r.avd.totalTaxDeduction) + ' Steuerersparnis', message: zulagenMsg });
+                  }
+
+                  // 5. Halbeinkünfteverfahren erklärt
+                  if (r.rv?.meetsHalbeinkuenfte) {
+                    let halvMsg = 'Die Rentenversicherung profitiert vom Halbeinkünfteverfahren: Weil die Vertragslaufzeit über 12 Jahre beträgt und die Auszahlung nach dem 62. Lebensjahr erfolgt, werden nur 42,5% deiner Erträge besteuert (statt der vollen Abgeltungssteuer von 26,375% beim ETF-Sparplan). ';
+                    halvMsg += 'Konkret: Von ' + fmt.formatEur(r.rv.totalGain) + ' Gewinn sind nur ' + fmt.formatEur(Math.round(r.rv.totalGain * 0.425)) + ' steuerpflichtig. ';
+                    halvMsg += 'Außerdem fällt in der gesamten Ansparphase (' + years + ' Jahre) KEINE Vorabpauschale an — im Gegensatz zum ETF-Sparplan, wo du jährlich Steuern auf unrealisierte Gewinne zahlst. ';
+                    halvMsg += 'Dieser Steuerstundungseffekt (das Geld arbeitet unversteuert weiter) ist der Hauptgrund, warum die Rentenversicherung trotz höherer Kosten konkurrenzfähig sein kann. Die Verbraucherzentrale empfiehlt ETF-Rentenversicherungen vor allem bei Laufzeiten über 20 Jahren und wenn ein günstiger Nettotarif (unter 0,8% p.a.) gewählt wird.';
+                    t.push({ severity: 'blue', title: '📋 Halbeinkünfteverfahren & Steuerstundung erklärt', message: halvMsg });
+                  }
+
+                  // 6. Kombi-Strategie
+                  if (r.kombi) {
+                    let kombiMsg = 'Da deine Sparrate (' + fmt.formatEur(inp.monthlyAmount) + '/Monat) über dem AVD-Maximum von 150 €/Monat liegt, empfiehlt sich eine Aufteilung: ';
+                    kombiMsg += r.kombi.splitInfo + '. Diese Kombi-Strategie erzielt ' + fmt.formatEur(r.kombi.netPayout) + ' netto — ';
+                    const kombiBetter = r.kombi.netPayout > Math.max(r.etf.netPayout, r.rv.netPayout);
+                    if (kombiBetter) {
+                      kombiMsg += 'das ist MEHR als jedes Einzelprodukt allein! Du profitierst von den AVD-Zulagen UND von den Vorteilen des Zweitprodukts.';
+                    } else {
+                      kombiMsg += 'allerdings schneidet ' + r.best.product + ' allein besser ab, weil der Zulagen-Vorteil die Einschränkung auf 150 € nicht ausgleicht.';
+                    }
+                    t.push({ severity: kombiBetter ? 'green' : 'amber', title: '🔀 Kombi-Strategie: ' + r.kombi.splitInfo, message: kombiMsg });
+                  }
+
+                  // 7. Risiko-Hinweis (Verbraucherzentrale)
+                  let riskMsg = 'Alle drei Anlageformen investieren in ETFs und unterliegen dem Marktrisiko. Historisch hat der MSCI World über jeden 15-Jahres-Zeitraum seit 1970 positiv abgeschnitten, aber vergangene Renditen garantieren keine zukünftigen Ergebnisse. ';
+                  riskMsg += 'Die Verbraucherzentrale empfiehlt eine Mindestanlagedauer von 10-15 Jahren für Aktien-ETFs. Deine geplante Anspardauer von ' + years + ' Jahren ' + (years >= 15 ? 'liegt im empfohlenen Bereich.' : 'ist relativ kurz — das erhöht das Risiko, in einer Abwärtsbewegung auszahlen zu müssen.');
+                  riskMsg += ' Bei Wirtschaftskrisen (z.B. 2008: −50%, Corona 2020: −21%) erholen sich breit gestreute ETFs historisch immer, aber die Erholung kann 2-5 Jahre dauern.';
+                  t.push({ severity: years < 15 ? 'amber' : 'blue', title: '⚠️ Marktrisiko & Anlagehorizont', message: riskMsg });
+
+                  // 8. Gesetzesänderungs-Risiko
+                  // Rürup-Hinweis (wenn aktiv)
+                  if (r.ruerup) {
+                    const grenzsteuer = inp.personalTaxRateCurrent;
+                    let ruerupMsg = 'Rürup-Rente-Analyse: Du hast über ' + years + ' Jahre ' + fmt.formatEur(r.ruerup.totalTaxDeduction) + ' an Steuerersparnis durch den Sonderausgabenabzug gespart (' + grenzsteuer + '% Grenzsteuersatz). Die prognostizierte monatliche Bruttorente beträgt ' + fmt.formatEur(r.ruerup.monthlyPensionGross) + '. ';
+                    ruerupMsg += 'Wichtig: Im Rentenalter werden ' + (r.ruerup.besteuerungsanteil * 100).toFixed(0) + '% der Rente nachgelagert besteuert. ';
+                    if (grenzsteuer < 35) {
+                      ruerupMsg += 'Die Verbraucherzentrale empfiehlt Rürup erst ab einem Grenzsteuersatz von 35–42%. Bei deinem Satz (' + grenzsteuer + '%) lohnt sich der Steuervorteil oft nicht gegenüber dem ETF-Sparplan — besonders wenn du Flexibilität bevorzugst.';
+                    } else if (grenzsteuer >= 42) {
+                      ruerupMsg += 'Dein hoher Grenzsteuersatz (' + grenzsteuer + '%) macht Rürup steuerlich sehr attraktiv. Beachte aber: keine Kapitalauszahlung möglich, nur lebenslange Rente, keine Vererbung an Kinder.';
+                    } else {
+                      ruerupMsg += 'Dein Grenzsteuersatz (' + grenzsteuer + '%) liegt im Grenzbereich. Rürup lohnt sich primär bei Selbstständigen ohne GRV-Zugang oder bei Bedarf nach Insolvenz-/Pfändungsschutz.';
+                    }
+                    t.push({ severity: grenzsteuer >= 42 ? 'green' : 'amber', title: '🏛️ Rürup-Rente (Schicht 1): Einordnung', message: ruerupMsg });
+                  }
+
+                  // Riester-Warnung (immer wenn enabled!)
+                  if (r.riester) {
+                    let riesterMsg = 'WICHTIG — Verbraucherzentrale & Finanztip (2026): „Vom Neuabschluss einer Riester-Rente wird abgeraten.“ Viele Versicherer haben sich aus dem Markt zurückgezogen, Neuabschlüsse sind kaum noch möglich. Ab 01.01.2027 wird Riester durch das Altersvorsorgedepot ersetzt — mit besseren Konditionen (höhere Zulagen, keine Beitragsgarantie, niedrigere Kosten). ';
+                    riesterMsg += 'Dein aktuelles Ergebnis: ' + fmt.formatEur(r.riester.netPayout) + ' netto bei ' + fmt.formatEur(r.riester.totalSubsidies) + ' erhaltenen Zulagen. ';
+                    if (inp.numberOfChildren >= 2) {
+                      riesterMsg += 'Mit ' + inp.numberOfChildren + ' Kindern bekommst du ' + (inp.numberOfChildren * 300) + ' € Kinderzulage pro Jahr — das ist der stärkste Hebel und macht Riester in deinem Fall noch halbwegs attraktiv. Bestehende Verträge können 2027 ins Altersvorsorgedepot transferiert werden (Finanztip-Empfehlung).';
+                    } else {
+                      riesterMsg += 'Ohne mehrere Kinder (kein Kinderzulagen-Hebel) ist Riester selten lohnend. Der ETF-Sparplan oder das neue Altersvorsorgedepot (ab 2027) sind fast immer besser. Bei einem Bestandsvertrag: beitragsfrei stellen und auf Reform-Transfer warten.';
+                    }
+                    t.push({ severity: 'red', title: '⚠️ Riester-Rente: Dringende Verbraucherzentrale-Warnung', message: riesterMsg });
+                  }
+
+                  t.push({
+                    severity: 'amber',
+                    title: '📜 Hinweis zu Gesetzesänderungen',
+                    message: 'Diese Berechnung basiert auf dem aktuellen Steuerrecht (Stand: April 2026) und dem Altersvorsorgereformgesetz vom 27.03.2026 (Altersvorsorgedepot ab 01.01.2027). Über einen Zeitraum von ' + years + ' Jahren können sich Steuersätze, Freibeträge, Zulagenhöhen und andere gesetzliche Rahmenbedingungen ändern. Der Basiszins für die Vorabpauschale wird jährlich neu festgelegt. Auch die Kostenstruktur der Anbieter kann sich verändern. Die Berechnungen sind daher Projektionen, keine Garantien. Wir empfehlen, die Parameter regelmäßig (jährlich) zu aktualisieren und bei Bedarf einen unabhängigen Honorarberater zu konsultieren.'
+                  });
+
+                  // 9. Disclaimer
+                  t.push({
+                    severity: 'blue',
+                    title: '📌 Wichtiger Hinweis',
+                    message: 'Dieser Vergleichsrechner dient ausschließlich der Information und Orientierung. Er ersetzt keine individuelle Finanzberatung. Die Berechnung vereinfacht u.a.: progressive Einkommensteuer (statt Grenzsatz), Soli-Freigrenze, jährlich schwankende Basiszinsen, Inflation und Kaufkraftverlust. Für verbindliche Entscheidungen konsultiere einen Honorarberater oder die Verbraucherzentrale (verbraucherzentrale.de). Quellen: Stiftung Warentest (05/2025), Finanztip, Bundesfinanzministerium, Verbraucherzentrale Niedersachsen.'
+                  });
+
+                  return t;
+                }
+              }">
+                <template x-for="(tip, i) in tips" :key="i">
+                  <div class="rounded-lg p-4 border-l-4"
+                       :class="{
+                         'bg-green-500/5 border-green-500': tip.severity === 'green',
+                         'bg-amber-500/5 border-amber-500': tip.severity === 'amber',
+                         'bg-red-500/5 border-red-500': tip.severity === 'red',
+                         'bg-blue-500/5 border-blue-500': tip.severity === 'blue'
+                       }">
+                    <div class="text-sm font-medium mb-1"
+                         :class="{ 'text-green-400': tip.severity==='green', 'text-amber-400': tip.severity==='amber', 'text-red-400': tip.severity==='red', 'text-blue-400': tip.severity==='blue' }"
+                         x-text="tip.title"></div>
+                    <div class="text-sm text-slate-400 leading-relaxed" x-text="tip.message"></div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- ===== KI-SEKTION ===== -->
+            <div class="bg-surface-800 rounded-xl border border-surface-700 p-5">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                  <svg class="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                  </svg>
+                  KI-Einschätzung (optional)
+                </h3>
+                <button @click="runAiAnalysis()"
+                        :disabled="$store.av.ai.loading"
+                        class="text-xs px-3 py-1.5 rounded-lg bg-brand/20 text-brand hover:bg-brand/30 transition-colors disabled:opacity-50">
+                  <span x-text="$store.av.ai.loading ? 'Analysiert…' : ($store.av.ai.result ? 'Neu analysieren' : 'KI-Beratung anfordern')"></span>
+                </button>
+              </div>
+              <template x-if="!hasApiKey() && !$store.av.ai.result && !$store.av.ai.loading">
+                <div class="bg-blue-500/5 border border-blue-500/20 rounded-lg p-4 text-sm text-slate-300">
+                  <strong class="text-blue-400">Für individualisierte KI-Analysen:</strong>
+                  Trage einen Google Gemini API-Key in den <button @click="$store.av.ui.showSettings = true" class="underline text-brand">Einstellungen</button> ein. Der Key ist kostenlos auf aistudio.google.com/apikey erhältlich. Deine Daten werden dabei an Google übertragen.
+                </div>
+              </template>
+              <template x-if="hasApiKey() && !$store.av.ai.result && !$store.av.ai.loading && !$store.av.ai.error">
+                <div class="text-sm text-slate-400">
+                  Klicke auf "KI-Beratung anfordern", um eine individualisierte Analyse deiner Situation durch Google Gemini zu erhalten. Die statischen Hinweise oben bleiben unabhängig davon bestehen.
+                </div>
+              </template>
+              <div x-show="$store.av.ai.loading || $store.av.ai.error || $store.av.ai.result"
+                   x-html="renderAiHtml()"></div>
+            </div>
+
+          </div>
+        </template>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- ===== SETTINGS MODAL ===== -->
+  <div x-show="$store.av.ui.showSettings" x-transition.opacity style="display:none"
+       class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+       @click.self="$store.av.ui.showSettings = false">
+    <div class="bg-surface-800 rounded-2xl border border-surface-700 p-6 w-full max-w-md mx-4 shadow-2xl max-h-[90vh] overflow-y-auto"
+         @click.stop
+         x-data="{
+           cfg: (JSON.parse(localStorage.getItem('tc_ai_config') || '{}')),
+           testStatus: '',
+           save() { localStorage.setItem('tc_ai_config', JSON.stringify(this.cfg)); this.testStatus = 'Gespeichert.'; setTimeout(() => this.testStatus = '', 2000); },
+           async test() {
+             this.save();
+             this.testStatus = 'Teste Verbindung…';
+             try {
+               if (!window.aiTestConnection) { this.testStatus = '✕ AI-Modul nicht geladen — Seite neu laden.'; return; }
+               await window.aiTestConnection();
+               this.testStatus = '✓ Verbindung erfolgreich';
+             } catch (e) { this.testStatus = '✕ ' + e.message; }
+           }
+         }">
+      <h2 class="text-lg font-semibold mb-4">Einstellungen</h2>
+
+      <div class="space-y-3">
+        <h3 class="text-sm font-semibold text-slate-300">KI-Analyse (optional)</h3>
+        <p class="text-xs text-slate-500">Mit einem Google Gemini API-Key erhältst du individualisierte KI-Analysen zusätzlich zu den statischen Hinweisen. Ohne Key bleibt alles wie gewohnt.</p>
+
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Gemini API-Key</label>
+          <input type="password" x-model="cfg.apiKey" @change="save()"
+                 placeholder="AIza…"
+                 class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+          <p class="text-xs text-slate-500 mt-1">
+            Kostenlos erstellen auf
+            <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" class="text-brand hover:underline">aistudio.google.com/apikey</a>
+          </p>
+        </div>
+
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Modell</label>
+          <select x-model="cfg.model" @change="save()"
+                  class="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+            <option value="gemini-2.5-flash">Gemini 2.5 Flash (empfohlen, schnell &amp; günstig)</option>
+            <option value="gemini-2.5-pro">Gemini 2.5 Pro (höchste Qualität, teurer)</option>
+            <option value="gemini-2.0-flash">Gemini 2.0 Flash (günstigst)</option>
+          </select>
+        </div>
+
+        <label class="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
+          <input type="checkbox" x-model="cfg.grounding" @change="save()"
+                 class="rounded bg-surface-900 border-surface-600">
+          <span>Web-Recherche aktivieren (für Aktien-Prognosen, nur Trading Cockpit)</span>
+        </label>
+
+        <button @click="test()"
+                class="w-full px-3 py-1.5 text-xs rounded-lg bg-brand/20 text-brand hover:bg-brand/30 transition-colors">
+          Verbindung testen
+        </button>
+        <div x-show="testStatus" class="text-xs text-slate-400" x-text="testStatus"></div>
+
+        <div class="mt-3 bg-amber-500/5 border border-amber-500/20 rounded-lg p-2 text-xs text-slate-400">
+          <strong class="text-amber-400">Datenschutz:</strong> Bei KI-Analysen werden deine Eingaben (Alter, Sparrate, Steuerdaten, Kinderanzahl) an Google in den USA übertragen. Trage keine Klarnamen oder Bankdaten ein. Der API-Key bleibt lokal im Browser.
+        </div>
+      </div>
+
+      <button @click="$store.av.ui.showSettings = false"
+              class="mt-5 w-full bg-brand hover:bg-brand-dark text-white font-medium rounded-lg px-4 py-2 transition-colors">
+        Schließen
+      </button>
+    </div>
+  </div>
+
+</body>
+</html>

@@ -4,15 +4,18 @@
  * Network-First fuer API-Calls
  */
 
-const CACHE_NAME = 'trading-cockpit-v1';
+const CACHE_NAME = 'trading-cockpit-v13';
 const STATIC_ASSETS = [
   './',
   './index.html',
+  './altersvorsorge.html',
   './css/custom.css',
   './js/app.js',
   './js/tax-engine.js',
   './js/api-client.js',
   './js/chart-manager.js',
+  './js/altersvorsorge-app.js',
+  './js/retirement-engine.js',
   './js/modules/tax-drag.js',
   './js/modules/break-even.js',
   './js/modules/net-profit.js',
@@ -24,6 +27,11 @@ const STATIC_ASSETS = [
   './js/utils/storage.js',
   './js/utils/glossary.js',
   './js/data/german-stocks.js',
+  './js/data/insurance-providers.js',
+  './js/tooltip.js',
+  './js/ai-client.js',
+  './js/ai-prompts.js',
+  './js/ai-renderer.js',
   './manifest.json'
 ];
 

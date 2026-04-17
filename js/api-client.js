@@ -246,9 +246,41 @@ export async function getHistoricalPrices(symbol, fromDate, toDate) {
 // ===== YAHOO FINANCE FALLBACK =====
 
 async function searchStocksYahoo(query) {
-  // Yahoo hat keinen einfachen Suchendpoint via CORS-Proxy
-  // Wir geben ein leeres Array zurueck und nutzen die lokale Suche
-  return [];
+  if (!query || query.length < 1) return [];
+  try {
+    // Yahoo Finance Search-Endpoint — liefert Symbole, Kurznamen, Exchange
+    const yahooUrl = 'https://query2.finance.yahoo.com/v1/finance/search?q=' +
+                     encodeURIComponent(query) + '&quotesCount=10&newsCount=0';
+    const cacheKey = 'ysearch_' + query.toLowerCase();
+    let data = null;
+
+    for (let i = 0; i < YAHOO_PROXIES.length; i++) {
+      try {
+        const proxyUrl = YAHOO_PROXIES[(currentProxyIndex + i) % YAHOO_PROXIES.length] + encodeURIComponent(yahooUrl);
+        data = await cachedFetch(proxyUrl, cacheKey, 5 * 60 * 1000, 60 * 60 * 1000);
+        if (data?.quotes) {
+          currentProxyIndex = (currentProxyIndex + i) % YAHOO_PROXIES.length;
+          break;
+        }
+      } catch (proxyErr) {
+        console.warn('Yahoo-Search Proxy ' + i + ' failed:', proxyErr.message);
+      }
+    }
+    if (!data?.quotes) return [];
+
+    return data.quotes
+      .filter(q => q.symbol && (q.quoteType === 'EQUITY' || q.quoteType === 'ETF' || !q.quoteType))
+      .slice(0, 10)
+      .map(q => ({
+        symbol: q.symbol,
+        name: q.shortname || q.longname || q.symbol,
+        exchange: q.exchDisp || q.exchange || '',
+        currency: q.currency || 'USD'
+      }));
+  } catch (e) {
+    console.warn('Yahoo search failed:', e.message);
+    return [];
+  }
 }
 
 async function getQuoteYahoo(symbol) {
