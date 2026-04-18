@@ -25,13 +25,20 @@
 
   <!-- TOP BAR -->
   <header class="sticky top-0 z-50 bg-surface-800 border-b border-surface-700 px-4 py-2 flex items-center justify-between">
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-2">
+      <!-- Burger-Menü (Mobile) -->
+      <button @click="$store.av.ui.mobileMenuOpen = !$store.av.ui.mobileMenuOpen"
+              class="lg:hidden p-2 rounded-lg hover:bg-surface-700" title="Eingaben">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+      </button>
       <svg class="w-7 h-7 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
       </svg>
       <nav class="flex items-center gap-1">
-        <a href="index.html" class="px-3 py-1.5 text-sm rounded-lg text-slate-400 hover:text-slate-200 hover:bg-surface-700 transition-colors">Trading Cockpit</a>
-        <a href="altersvorsorge.html" class="px-3 py-1.5 text-sm rounded-lg bg-brand/20 text-brand font-medium">Altersvorsorge</a>
+        <a href="index.html" class="px-2 sm:px-3 py-1.5 text-xs sm:text-sm rounded-lg text-slate-400 hover:text-slate-200 hover:bg-surface-700 transition-colors">Trading</a>
+        <a href="altersvorsorge.html" class="px-2 sm:px-3 py-1.5 text-xs sm:text-sm rounded-lg bg-brand/20 text-brand font-medium">Altersvorsorge</a>
       </nav>
     </div>
     <div class="flex items-center gap-2">
@@ -46,9 +53,16 @@
     </div>
   </header>
 
-  <div class="flex h-[calc(100vh-49px)]">
+  <div class="flex h-[calc(100vh-49px)] relative">
+    <!-- Mobile Overlay (hinter Sidebar) -->
+    <div x-show="$store.av.ui.mobileMenuOpen" x-transition.opacity
+         @click="$store.av.ui.mobileMenuOpen = false"
+         class="fixed inset-0 bg-black/60 z-30 lg:hidden"
+         style="display:none"></div>
+
     <!-- SIDEBAR -->
-    <aside class="w-80 flex-shrink-0 bg-surface-800 border-r border-surface-700 overflow-y-auto hidden lg:block">
+    <aside class="w-80 flex-shrink-0 bg-surface-800 border-r border-surface-700 overflow-y-auto hidden lg:block"
+           :class="$store.av.ui.mobileMenuOpen ? '!block fixed top-[49px] bottom-0 left-0 z-40' : ''">
       <div class="p-4 space-y-5">
 
         <!-- Persönliche Daten -->
@@ -287,7 +301,7 @@
         <hr class="border-surface-700">
 
         <!-- Berechnen Button -->
-        <button @click="recalculate()"
+        <button @click="recalculate(); $store.av.ui.mobileMenuOpen = false"
                 class="w-full bg-brand hover:bg-brand-dark text-white font-medium rounded-lg px-4 py-3 transition-colors flex items-center justify-center gap-2 text-sm">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
@@ -319,38 +333,44 @@
             <div class="grid grid-cols-2 lg:grid-cols-3 gap-3">
               <div class="bg-surface-800 rounded-xl border border-surface-700 p-4">
                 <div class="text-xs text-slate-400 mb-1">ETF-Sparplan (netto)</div>
-                <div class="text-xl font-bold text-green-400" x-text="fmt.formatEur($store.av.results.etf?.netPayout)"></div>
-                <div class="text-xs text-slate-500" x-text="'Kosten: ' + fmt.formatEur($store.av.results.etf?.totalCosts) + ' | Steuer: ' + fmt.formatEur($store.av.results.etf?.totalTax)"></div>
+                <div class="text-xl font-bold text-green-400"><span x-bind="calcAttrs(calc.av.netPayout, $store.av.results.etf)" x-text="fmt.formatEur($store.av.results.etf?.netPayout)"></span></div>
+                <div class="text-xs text-slate-500">
+                  Kosten: <span x-bind="calcAttrs(calc.av.totalCosts, $store.av.results.etf, $store.av.inputs.retirementAge - $store.av.inputs.currentAge)" x-text="fmt.formatEur($store.av.results.etf?.totalCosts)"></span>
+                  | Steuer: <span x-bind="calcAttrs(calc.av.totalTax, $store.av.results.etf)" x-text="fmt.formatEur($store.av.results.etf?.totalTax)"></span>
+                </div>
               </div>
               <div class="bg-surface-800 rounded-xl border border-surface-700 p-4">
                 <div class="text-xs text-slate-400 mb-1">Rentenversicherung (netto)</div>
-                <div class="text-xl font-bold text-purple-400" x-text="fmt.formatEur($store.av.results.rv?.netPayout)"></div>
-                <div class="text-xs text-slate-500" x-text="'Kosten: ' + fmt.formatEur($store.av.results.rv?.totalCosts) + ' | Steuer: ' + fmt.formatEur($store.av.results.rv?.totalTax)"></div>
+                <div class="text-xl font-bold text-purple-400"><span x-bind="calcAttrs(calc.av.netPayout, $store.av.results.rv)" x-text="fmt.formatEur($store.av.results.rv?.netPayout)"></span></div>
+                <div class="text-xs text-slate-500">
+                  Kosten: <span x-bind="calcAttrs(calc.av.totalCosts, $store.av.results.rv, $store.av.inputs.retirementAge - $store.av.inputs.currentAge)" x-text="fmt.formatEur($store.av.results.rv?.totalCosts)"></span>
+                  | Steuer: <span x-bind="calcAttrs(calc.av.totalTax, $store.av.results.rv)" x-text="fmt.formatEur($store.av.results.rv?.totalTax)"></span>
+                </div>
               </div>
               <div class="bg-surface-800 rounded-xl border border-surface-700 p-4">
                 <div class="text-xs text-slate-400 mb-1">Altersvorsorgedepot (netto)</div>
-                <div class="text-xl font-bold text-cyan-400" x-text="fmt.formatEur($store.av.results.avd?.netPayout)"></div>
-                <div class="text-xs text-green-400" x-text="'+ ' + fmt.formatEur($store.av.results.avd?.totalSubsidies) + ' Zulagen'"></div>
+                <div class="text-xl font-bold text-cyan-400"><span x-bind="calcAttrs(calc.av.netPayout, $store.av.results.avd)" x-text="fmt.formatEur($store.av.results.avd?.netPayout)"></span></div>
+                <div class="text-xs text-green-400">+ <span x-bind="calcAttrs(calc.av.totalSubsidies, $store.av.results.avd)" x-text="fmt.formatEur($store.av.results.avd?.totalSubsidies)"></span> Zulagen</div>
               </div>
               <!-- Rürup -->
               <div x-show="$store.av.results.ruerup" class="bg-surface-800 rounded-xl border border-pink-500/20 p-4">
                 <div class="text-xs text-slate-400 mb-1">Rürup-Rente (gesamt)</div>
-                <div class="text-xl font-bold text-pink-400" x-text="fmt.formatEur($store.av.results.ruerup?.netPayout)"></div>
+                <div class="text-xl font-bold text-pink-400"><span x-bind="calcAttrs(calc.av.netPayout, $store.av.results.ruerup)" x-text="fmt.formatEur($store.av.results.ruerup?.netPayout)"></span></div>
                 <div class="text-xs text-slate-500">
-                  <span x-text="'Monatl. Rente: ' + fmt.formatEur($store.av.results.ruerup?.monthlyPensionGross)"></span><br>
-                  <span class="text-green-400" x-text="'Steuerersparnis: ' + fmt.formatEur($store.av.results.ruerup?.totalTaxDeduction)"></span>
+                  Monatl. Rente: <span x-bind="calcAttrs(calc.av.monthlyPensionGross, $store.av.results.ruerup)" x-text="fmt.formatEur($store.av.results.ruerup?.monthlyPensionGross)"></span><br>
+                  <span class="text-green-400">Steuerersparnis: <span x-bind="calcAttrs(calc.av.totalTaxDeduction, $store.av.results.ruerup)" x-text="fmt.formatEur($store.av.results.ruerup?.totalTaxDeduction)"></span></span>
                 </div>
               </div>
               <!-- Riester -->
               <div x-show="$store.av.results.riester" class="bg-surface-800 rounded-xl border border-slate-500/20 p-4">
                 <div class="text-xs text-slate-400 mb-1">Riester-Rente (netto)</div>
-                <div class="text-xl font-bold text-slate-300" x-text="fmt.formatEur($store.av.results.riester?.netPayout)"></div>
-                <div class="text-xs text-green-400" x-text="'+ ' + fmt.formatEur($store.av.results.riester?.totalSubsidies) + ' Zulagen'"></div>
+                <div class="text-xl font-bold text-slate-300"><span x-bind="calcAttrs(calc.av.netPayout, $store.av.results.riester)" x-text="fmt.formatEur($store.av.results.riester?.netPayout)"></span></div>
+                <div class="text-xs text-green-400">+ <span x-bind="calcAttrs(calc.av.totalSubsidies, $store.av.results.riester)" x-text="fmt.formatEur($store.av.results.riester?.totalSubsidies)"></span> Zulagen</div>
               </div>
               <div class="bg-surface-800 rounded-xl border border-brand/30 p-4">
                 <div class="text-xs text-slate-400 mb-1">Beste Option</div>
                 <div class="text-xl font-bold text-brand" x-text="$store.av.results.best?.productShort"></div>
-                <div class="text-xs text-brand/70" x-text="fmt.formatEur($store.av.results.best?.netPayout) + ' netto'"></div>
+                <div class="text-xs text-brand/70"><span x-bind="calcAttrs(calc.av.bestOption, $store.av.results)" x-text="fmt.formatEur($store.av.results.best?.netPayout) + ' netto'"></span></div>
               </div>
             </div>
 
@@ -364,59 +384,64 @@
                 <span class="text-sm font-semibold text-amber-400">Kombi-Empfehlung</span>
               </div>
               <div class="text-sm text-slate-300" x-text="$store.av.results.kombi?.splitInfo"></div>
-              <div class="text-lg font-bold text-amber-400 mt-1" x-text="'Netto: ' + fmt.formatEur($store.av.results.kombi?.netPayout)"></div>
+              <div class="text-lg font-bold text-amber-400 mt-1">Netto: <span x-bind="calcAttrs(calc.av.kombiNetPayout, $store.av.results.kombi, $store.av.inputs)" x-text="fmt.formatEur($store.av.results.kombi?.netPayout)"></span></div>
               <div class="text-xs text-slate-500 mt-1">
                 Bei einer Sparrate über 150 €/Monat werden die ersten 150 € im Altersvorsorgedepot (mit Zulagen) angelegt und der Rest im besten Zweitprodukt.
               </div>
             </div>
 
             <!-- Tabs -->
-            <div class="flex gap-1 overflow-x-auto pb-1 scrollbar-hide">
-              <template x-for="tab in $store.av.tabs" :key="tab.id">
-                <button @click="$store.av.ui.activeTab = tab.id"
-                        class="px-4 py-2 text-sm rounded-lg whitespace-nowrap transition-colors"
-                        :class="$store.av.ui.activeTab === tab.id ? 'bg-brand/20 text-brand font-medium' : 'text-slate-400 hover:text-slate-200 hover:bg-surface-700'"
-                        x-text="tab.label"></button>
-              </template>
+            <div class="flex items-center justify-between gap-3 pb-1">
+              <div class="flex gap-1 overflow-x-auto scrollbar-hide">
+                <template x-for="tab in $store.av.tabs" :key="tab.id">
+                  <button @click="$store.av.ui.activeTab = tab.id"
+                          class="px-4 py-2 text-sm rounded-lg whitespace-nowrap transition-colors"
+                          :class="$store.av.ui.activeTab === tab.id ? 'bg-brand/20 text-brand font-medium' : 'text-slate-400 hover:text-slate-200 hover:bg-surface-700'"
+                          x-text="tab.label"></button>
+                </template>
+              </div>
+              <div class="text-xs text-slate-500 whitespace-nowrap hidden sm:block">
+                Tipp: Maus über berechnete Werte für Formel & Erklärung.
+              </div>
             </div>
 
             <!-- Tab: Vermögensentwicklung -->
-            <div x-show="$store.av.ui.activeTab === 'vermoegen'" class="space-y-4" x-data="{ showFormulas: false, activeTable: 'etf' }">
+            <div x-show="$store.av.ui.activeTab === 'vermoegen'" class="space-y-4" x-data="{ activeTable: 'etf' }">
               <!-- Chart -->
               <div class="bg-surface-800 rounded-xl border border-surface-700 p-5">
                 <h2 class="text-lg font-semibold mb-4">Vermögensentwicklung über die Jahre</h2>
                 <div id="growthChart" style="min-height: 380px;"></div>
-                <div class="mt-3 grid grid-cols-3 gap-2 text-xs">
+                <div class="mt-3 grid grid-cols-3 gap-2 text-xs" x-data="{ years: $store.av.inputs.retirementAge - $store.av.inputs.currentAge }">
                   <div class="bg-surface-900 rounded-lg p-2">
                     <span class="text-slate-400">Kumul. Kosten ETF:</span>
-                    <span class="text-red-400 font-medium ml-1" x-text="fmt.formatEur($store.av.results.etf?.totalCosts)"></span>
+                    <span class="text-red-400 font-medium ml-1"
+                          x-bind="calcAttrs(calc.av.totalCosts, $store.av.results.etf, years)"
+                          x-text="fmt.formatEur($store.av.results.etf?.totalCosts)"></span>
                   </div>
                   <div class="bg-surface-900 rounded-lg p-2">
                     <span class="text-slate-400">Kumul. Kosten RV:</span>
-                    <span class="text-red-400 font-medium ml-1" x-text="fmt.formatEur($store.av.results.rv?.totalCosts)"></span>
+                    <span class="text-red-400 font-medium ml-1"
+                          x-bind="calcAttrs(calc.av.totalCosts, $store.av.results.rv, years)"
+                          x-text="fmt.formatEur($store.av.results.rv?.totalCosts)"></span>
                   </div>
                   <div class="bg-surface-900 rounded-lg p-2">
                     <span class="text-slate-400">Kumul. Kosten AVD:</span>
-                    <span class="text-red-400 font-medium ml-1" x-text="fmt.formatEur($store.av.results.avd?.totalCosts)"></span>
+                    <span class="text-red-400 font-medium ml-1"
+                          x-bind="calcAttrs(calc.av.totalCosts, $store.av.results.avd, years)"
+                          x-text="fmt.formatEur($store.av.results.avd?.totalCosts)"></span>
                   </div>
                 </div>
               </div>
 
               <!-- Jahrestabellen -->
               <div class="bg-surface-800 rounded-xl border border-surface-700 p-5">
-                <!-- Tab-Auswahl + Formeln-Toggle -->
-                <div class="flex items-center justify-between mb-3">
+                <!-- Tab-Auswahl für Produkt-Tabelle -->
+                <div class="flex items-center mb-3">
                   <div class="flex gap-1">
                     <button @click="activeTable = 'etf'" class="px-3 py-1.5 text-xs rounded-lg transition-colors" :class="activeTable === 'etf' ? 'bg-green-500/20 text-green-400 font-medium' : 'text-slate-400 hover:text-slate-200'">ETF-Sparplan</button>
                     <button @click="activeTable = 'rv'" class="px-3 py-1.5 text-xs rounded-lg transition-colors" :class="activeTable === 'rv' ? 'bg-purple-500/20 text-purple-400 font-medium' : 'text-slate-400 hover:text-slate-200'">Rentenversicherung</button>
                     <button @click="activeTable = 'avd'" class="px-3 py-1.5 text-xs rounded-lg transition-colors" :class="activeTable === 'avd' ? 'bg-cyan-500/20 text-cyan-400 font-medium' : 'text-slate-400 hover:text-slate-200'">Altersvorsorgedepot</button>
                   </div>
-                  <label class="flex items-center gap-1.5 cursor-pointer select-none">
-                    <span class="text-xs text-slate-500">Rechenweg</span>
-                    <button @click="showFormulas = !showFormulas" class="relative w-8 h-4 rounded-full transition-colors" :class="showFormulas ? 'bg-brand' : 'bg-surface-600'">
-                      <span class="absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform duration-200" :class="showFormulas ? 'translate-x-4' : ''"></span>
-                    </button>
-                  </label>
                 </div>
 
                 <!-- === ETF-Sparplan Tabelle === -->
@@ -442,12 +467,12 @@
                             <td class="py-1.5 px-1 text-slate-500" x-text="s.year"></td>
                             <td class="py-1.5 px-1 text-slate-400" x-text="s.age"></td>
                             <td class="py-1.5 px-1 text-right text-slate-300" x-text="fmt.formatEur(s.contribution)"></td>
-                            <td class="py-1.5 px-1 text-right text-green-400" :title="showFormulas ? 'Berechnung: (' + fmt.formatEur(s.portfolioValue - s.contribution - s.grossReturn + s.costs) + ' + ' + fmt.formatEur(s.contribution) + '/2) × ' + $store.av.inputs.expectedReturn + '% = ' + fmt.formatEur(s.grossReturn) : ''" x-text="fmt.formatEur(s.grossReturn)"></td>
-                            <td class="py-1.5 px-1 text-right text-red-400" :title="showFormulas ? 'TER: Bemessungsgrdl. × ' + $store.av.inputs.etfTer + '% = ' + fmt.formatEur(s.costs) : ''" x-text="fmt.formatEur(s.costs)"></td>
-                            <td class="py-1.5 px-1 text-right text-amber-400" :title="showFormulas ? 'VP = Vorjahreswert × ' + $store.av.inputs.basiszins + '% × 0,7 (gedeckelt auf Jahresgewinn)' : ''" x-text="fmt.formatEur(s.vorabpauschaleGross)"></td>
-                            <td class="py-1.5 px-1 text-right" :class="s.vorabpauschaleTax > 0 ? 'text-purple-400' : 'text-slate-600'" :title="showFormulas ? 'Steuerpfl. VP: ' + fmt.formatEur(s.vorabpauschaleTaxable) + ' − SPB ' + fmt.formatEur(s.vorabpauschaleSPB) + ' = ' + fmt.formatEur(Math.max(0, s.vorabpauschaleTaxable - s.vorabpauschaleSPB)) + ' × 26,375%' : (s.vorabpauschaleTax === 0 ? 'VP liegt unter dem Sparerpauschbetrag (1.000 €) → keine Steuer fällig' : '')" x-text="fmt.formatEur(s.vorabpauschaleTax)"></td>
+                            <td class="py-1.5 px-1 text-right text-green-400"><span x-bind="calcAttrs(calc.av.etfGrossReturn, s, $store.av.inputs)" x-text="fmt.formatEur(s.grossReturn)"></span></td>
+                            <td class="py-1.5 px-1 text-right text-red-400"><span x-bind="calcAttrs(calc.av.etfTerCosts, s, $store.av.inputs)" x-text="fmt.formatEur(s.costs)"></span></td>
+                            <td class="py-1.5 px-1 text-right text-amber-400"><span x-bind="calcAttrs(calc.av.etfVorabpauschale, s, $store.av.inputs)" x-text="fmt.formatEur(s.vorabpauschaleGross)"></span></td>
+                            <td class="py-1.5 px-1 text-right" :class="s.vorabpauschaleTax > 0 ? 'text-purple-400' : 'text-slate-600'"><span x-bind="calcAttrs(calc.av.etfVorabpauschaleTax, s)" x-text="fmt.formatEur(s.vorabpauschaleTax)"></span></td>
                             <td class="py-1.5 px-1 text-right text-purple-300" x-text="fmt.formatEur(s.cumulativeVPTax)"></td>
-                            <td class="py-1.5 px-1 text-right text-white font-medium" x-text="fmt.formatEur(s.portfolioValue)"></td>
+                            <td class="py-1.5 px-1 text-right text-white font-medium"><span x-bind="calcAttrs(calc.av.etfPortfolioValue, s, $store.av.inputs)" x-text="fmt.formatEur(s.portfolioValue)"></span></td>
                           </tr>
                         </template>
                       </tbody>
@@ -480,11 +505,11 @@
                             <td class="py-1.5 px-1 text-slate-500" x-text="s.year"></td>
                             <td class="py-1.5 px-1 text-slate-400" x-text="s.age"></td>
                             <td class="py-1.5 px-1 text-right text-slate-300" x-text="fmt.formatEur(s.contribution)"></td>
-                            <td class="py-1.5 px-1 text-right text-green-400" :title="showFormulas ? 'Berechnung: Bemessungsgrdl. × ' + $store.av.inputs.expectedReturn + '%' : ''" x-text="fmt.formatEur(s.grossReturn)"></td>
-                            <td class="py-1.5 px-1 text-right text-red-400" :title="showFormulas ? 'Anbieterkosten: Bemessungsgrdl. × ' + (PROVIDERS.find(p => p.id === $store.av.inputs.selectedProviderId)?.totalCostRate * 100).toFixed(2) + '%' : ''" x-text="fmt.formatEur(s.costs)"></td>
-                            <td class="py-1.5 px-1 text-right text-red-300" x-text="fmt.formatEur(s.cumulativeCosts)"></td>
+                            <td class="py-1.5 px-1 text-right text-green-400"><span x-bind="calcAttrs(calc.av.rvGrossReturn, s, $store.av.inputs)" x-text="fmt.formatEur(s.grossReturn)"></span></td>
+                            <td class="py-1.5 px-1 text-right text-red-400"><span x-bind="calcAttrs(calc.av.rvCosts, s, $store.av.inputs, (PROVIDERS.find(p => p.id === $store.av.inputs.selectedProviderId) || {}).name, (PROVIDERS.find(p => p.id === $store.av.inputs.selectedProviderId) || {}).totalCostRate)" x-text="fmt.formatEur(s.costs)"></span></td>
+                            <td class="py-1.5 px-1 text-right text-red-300"><span x-bind="calcAttrs(calc.av.rvCumCosts, s)" x-text="fmt.formatEur(s.cumulativeCosts)"></span></td>
                             <td class="py-1.5 px-1 text-right text-green-600" title="Keine Steuer in der Ansparphase (Steuerstundung)">0,00 €</td>
-                            <td class="py-1.5 px-1 text-right text-white font-medium" x-text="fmt.formatEur(s.portfolioValue)"></td>
+                            <td class="py-1.5 px-1 text-right text-white font-medium"><span x-bind="calcAttrs(calc.av.rvPortfolioValue, s, $store.av.inputs)" x-text="fmt.formatEur(s.portfolioValue)"></span></td>
                           </tr>
                         </template>
                       </tbody>
@@ -517,11 +542,11 @@
                             <td class="py-1.5 px-1 text-slate-500" x-text="s.year"></td>
                             <td class="py-1.5 px-1 text-slate-400" x-text="s.age"></td>
                             <td class="py-1.5 px-1 text-right text-slate-300" x-text="fmt.formatEur(s.contribution)"></td>
-                            <td class="py-1.5 px-1 text-right text-cyan-400" :title="showFormulas ? 'Grundzulage: ' + fmt.formatEur(s.subsidyDetail?.grundzulage || 0) + ' + Kinderzulage: ' + fmt.formatEur(s.subsidyDetail?.kinderzulage || 0) + (s.subsidyDetail?.bonus > 0 ? ' + Bonus: ' + fmt.formatEur(s.subsidyDetail.bonus) : '') : ''" x-text="fmt.formatEur(s.stateSubsidy)"></td>
-                            <td class="py-1.5 px-1 text-right text-green-400" :title="showFormulas ? fmt.formatEur(s.contribution) + ' × ' + $store.av.inputs.personalTaxRateCurrent + '% Steuersatz' : ''" x-text="fmt.formatEur(s.taxDeduction)"></td>
-                            <td class="py-1.5 px-1 text-right text-green-400" x-text="fmt.formatEur(s.grossReturn)"></td>
-                            <td class="py-1.5 px-1 text-right text-red-400" x-text="fmt.formatEur(s.costs)"></td>
-                            <td class="py-1.5 px-1 text-right text-white font-medium" x-text="fmt.formatEur(s.portfolioValue)"></td>
+                            <td class="py-1.5 px-1 text-right text-cyan-400"><span x-bind="calcAttrs(calc.av.avdSubsidy, s, $store.av.inputs)" x-text="fmt.formatEur(s.stateSubsidy)"></span></td>
+                            <td class="py-1.5 px-1 text-right text-green-400"><span x-bind="calcAttrs(calc.av.avdTaxDeduction, s, $store.av.inputs)" x-text="fmt.formatEur(s.taxDeduction)"></span></td>
+                            <td class="py-1.5 px-1 text-right text-green-400"><span x-bind="calcAttrs(calc.av.avdGrossReturn, s, $store.av.inputs)" x-text="fmt.formatEur(s.grossReturn)"></span></td>
+                            <td class="py-1.5 px-1 text-right text-red-400"><span x-bind="calcAttrs(calc.av.avdCosts, s, $store.av.inputs)" x-text="fmt.formatEur(s.costs)"></span></td>
+                            <td class="py-1.5 px-1 text-right text-white font-medium"><span x-bind="calcAttrs(calc.av.avdPortfolioValue, s, $store.av.inputs)" x-text="fmt.formatEur(s.portfolioValue)"></span></td>
                           </tr>
                         </template>
                       </tbody>
@@ -532,9 +557,6 @@
                   </div>
                 </div>
 
-                <div class="mt-3 text-xs text-slate-600" x-show="showFormulas">
-                  Rechenweg aktiv: Fahre mit der Maus über die Zahlenwerte, um die Berechnungsformel mit deinen konkreten Werten zu sehen.
-                </div>
               </div>
             </div>
 
@@ -556,30 +578,30 @@
                       <th class="text-right py-2 px-2 text-slate-300" x-show="$store.av.results.riester">Riester</th>
                     </tr>
                   </thead>
-                  <tbody class="text-xs">
+                  <tbody class="text-xs" x-data="{ years: $store.av.inputs.retirementAge - $store.av.inputs.currentAge }">
                     <tr class="border-b border-surface-700/50">
                       <td class="py-2 px-2 text-slate-400">Eingezahlt</td>
-                      <td class="py-2 px-2 text-right" x-text="fmt.formatEur($store.av.results.etf?.totalContributed)"></td>
-                      <td class="py-2 px-2 text-right" x-text="fmt.formatEur($store.av.results.rv?.totalContributed)"></td>
-                      <td class="py-2 px-2 text-right" x-text="fmt.formatEur($store.av.results.avd?.totalContributed)"></td>
-                      <td class="py-2 px-2 text-right" x-show="$store.av.results.ruerup" x-text="fmt.formatEur($store.av.results.ruerup?.totalContributed)"></td>
-                      <td class="py-2 px-2 text-right" x-show="$store.av.results.riester" x-text="fmt.formatEur($store.av.results.riester?.totalContributed)"></td>
+                      <td class="py-2 px-2 text-right"><span x-bind="calcAttrs(calc.av.totalContributed, $store.av.results.etf, years)" x-text="fmt.formatEur($store.av.results.etf?.totalContributed)"></span></td>
+                      <td class="py-2 px-2 text-right"><span x-bind="calcAttrs(calc.av.totalContributed, $store.av.results.rv, years)" x-text="fmt.formatEur($store.av.results.rv?.totalContributed)"></span></td>
+                      <td class="py-2 px-2 text-right"><span x-bind="calcAttrs(calc.av.totalContributed, $store.av.results.avd, years)" x-text="fmt.formatEur($store.av.results.avd?.totalContributed)"></span></td>
+                      <td class="py-2 px-2 text-right" x-show="$store.av.results.ruerup"><span x-bind="calcAttrs(calc.av.totalContributed, $store.av.results.ruerup, years)" x-text="fmt.formatEur($store.av.results.ruerup?.totalContributed)"></span></td>
+                      <td class="py-2 px-2 text-right" x-show="$store.av.results.riester"><span x-bind="calcAttrs(calc.av.totalContributed, $store.av.results.riester, years)" x-text="fmt.formatEur($store.av.results.riester?.totalContributed)"></span></td>
                     </tr>
                     <tr class="border-b border-surface-700/50">
                       <td class="py-2 px-2 text-slate-400">Staatliche Zulagen</td>
                       <td class="py-2 px-2 text-right text-slate-500">—</td>
                       <td class="py-2 px-2 text-right text-slate-500">—</td>
-                      <td class="py-2 px-2 text-right text-green-400" x-text="fmt.formatEur($store.av.results.avd?.totalSubsidies)"></td>
+                      <td class="py-2 px-2 text-right text-green-400"><span x-bind="calcAttrs(calc.av.totalSubsidies, $store.av.results.avd)" x-text="fmt.formatEur($store.av.results.avd?.totalSubsidies)"></span></td>
                       <td class="py-2 px-2 text-right text-slate-500" x-show="$store.av.results.ruerup">—</td>
-                      <td class="py-2 px-2 text-right text-green-400" x-show="$store.av.results.riester" x-text="fmt.formatEur($store.av.results.riester?.totalSubsidies)"></td>
+                      <td class="py-2 px-2 text-right text-green-400" x-show="$store.av.results.riester"><span x-bind="calcAttrs(calc.av.totalSubsidies, $store.av.results.riester)" x-text="fmt.formatEur($store.av.results.riester?.totalSubsidies)"></span></td>
                     </tr>
                     <tr class="border-b border-surface-700/50">
                       <td class="py-2 px-2 text-slate-400">Steuerersparnis Ansparphase</td>
                       <td class="py-2 px-2 text-right text-slate-500">—</td>
                       <td class="py-2 px-2 text-right text-slate-500">—</td>
-                      <td class="py-2 px-2 text-right text-green-400" x-text="fmt.formatEur($store.av.results.avd?.totalTaxDeduction)"></td>
-                      <td class="py-2 px-2 text-right text-green-400" x-show="$store.av.results.ruerup" x-text="fmt.formatEur($store.av.results.ruerup?.totalTaxDeduction)"></td>
-                      <td class="py-2 px-2 text-right text-green-400" x-show="$store.av.results.riester" x-text="fmt.formatEur($store.av.results.riester?.totalTaxDeduction)"></td>
+                      <td class="py-2 px-2 text-right text-green-400"><span x-bind="calcAttrs(calc.av.totalTaxDeduction, $store.av.results.avd)" x-text="fmt.formatEur($store.av.results.avd?.totalTaxDeduction)"></span></td>
+                      <td class="py-2 px-2 text-right text-green-400" x-show="$store.av.results.ruerup"><span x-bind="calcAttrs(calc.av.totalTaxDeduction, $store.av.results.ruerup)" x-text="fmt.formatEur($store.av.results.ruerup?.totalTaxDeduction)"></span></td>
+                      <td class="py-2 px-2 text-right text-green-400" x-show="$store.av.results.riester"><span x-bind="calcAttrs(calc.av.totalTaxDeduction, $store.av.results.riester)" x-text="fmt.formatEur($store.av.results.riester?.totalTaxDeduction)"></span></td>
                     </tr>
                     <tr class="border-b border-surface-700/50">
                       <td class="py-2 px-2 text-slate-400">Vermögen bei Rente</td>
@@ -591,27 +613,27 @@
                     </tr>
                     <tr class="border-b border-surface-700/50">
                       <td class="py-2 px-2 text-slate-400">Gesamtkosten</td>
-                      <td class="py-2 px-2 text-right text-red-400" x-text="fmt.formatEur($store.av.results.etf?.totalCosts)"></td>
-                      <td class="py-2 px-2 text-right text-red-400" x-text="fmt.formatEur($store.av.results.rv?.totalCosts)"></td>
-                      <td class="py-2 px-2 text-right text-red-400" x-text="fmt.formatEur($store.av.results.avd?.totalCosts)"></td>
-                      <td class="py-2 px-2 text-right text-red-400" x-show="$store.av.results.ruerup" x-text="fmt.formatEur($store.av.results.ruerup?.totalCosts)"></td>
-                      <td class="py-2 px-2 text-right text-red-400" x-show="$store.av.results.riester" x-text="fmt.formatEur($store.av.results.riester?.totalCosts)"></td>
+                      <td class="py-2 px-2 text-right text-red-400"><span x-bind="calcAttrs(calc.av.totalCosts, $store.av.results.etf, years)" x-text="fmt.formatEur($store.av.results.etf?.totalCosts)"></span></td>
+                      <td class="py-2 px-2 text-right text-red-400"><span x-bind="calcAttrs(calc.av.totalCosts, $store.av.results.rv, years)" x-text="fmt.formatEur($store.av.results.rv?.totalCosts)"></span></td>
+                      <td class="py-2 px-2 text-right text-red-400"><span x-bind="calcAttrs(calc.av.totalCosts, $store.av.results.avd, years)" x-text="fmt.formatEur($store.av.results.avd?.totalCosts)"></span></td>
+                      <td class="py-2 px-2 text-right text-red-400" x-show="$store.av.results.ruerup"><span x-bind="calcAttrs(calc.av.totalCosts, $store.av.results.ruerup, years)" x-text="fmt.formatEur($store.av.results.ruerup?.totalCosts)"></span></td>
+                      <td class="py-2 px-2 text-right text-red-400" x-show="$store.av.results.riester"><span x-bind="calcAttrs(calc.av.totalCosts, $store.av.results.riester, years)" x-text="fmt.formatEur($store.av.results.riester?.totalCosts)"></span></td>
                     </tr>
                     <tr class="border-b border-surface-700/50">
                       <td class="py-2 px-2 text-slate-400">Gesamtsteuern</td>
-                      <td class="py-2 px-2 text-right text-purple-400" x-text="fmt.formatEur($store.av.results.etf?.totalTax)"></td>
-                      <td class="py-2 px-2 text-right text-purple-400" x-text="fmt.formatEur($store.av.results.rv?.totalTax)"></td>
-                      <td class="py-2 px-2 text-right text-purple-400" x-text="fmt.formatEur($store.av.results.avd?.totalTax)"></td>
-                      <td class="py-2 px-2 text-right text-purple-400" x-show="$store.av.results.ruerup" x-text="fmt.formatEur($store.av.results.ruerup?.totalTax)"></td>
-                      <td class="py-2 px-2 text-right text-purple-400" x-show="$store.av.results.riester" x-text="fmt.formatEur($store.av.results.riester?.totalTax)"></td>
+                      <td class="py-2 px-2 text-right text-purple-400"><span x-bind="calcAttrs(calc.av.totalTax, $store.av.results.etf)" x-text="fmt.formatEur($store.av.results.etf?.totalTax)"></span></td>
+                      <td class="py-2 px-2 text-right text-purple-400"><span x-bind="calcAttrs(calc.av.totalTax, $store.av.results.rv)" x-text="fmt.formatEur($store.av.results.rv?.totalTax)"></span></td>
+                      <td class="py-2 px-2 text-right text-purple-400"><span x-bind="calcAttrs(calc.av.totalTax, $store.av.results.avd)" x-text="fmt.formatEur($store.av.results.avd?.totalTax)"></span></td>
+                      <td class="py-2 px-2 text-right text-purple-400" x-show="$store.av.results.ruerup"><span x-bind="calcAttrs(calc.av.totalTax, $store.av.results.ruerup)" x-text="fmt.formatEur($store.av.results.ruerup?.totalTax)"></span></td>
+                      <td class="py-2 px-2 text-right text-purple-400" x-show="$store.av.results.riester"><span x-bind="calcAttrs(calc.av.totalTax, $store.av.results.riester)" x-text="fmt.formatEur($store.av.results.riester?.totalTax)"></span></td>
                     </tr>
                     <tr class="font-medium">
                       <td class="py-2 px-2 text-slate-300">Netto-Auszahlung</td>
-                      <td class="py-2 px-2 text-right text-green-400" x-text="fmt.formatEur($store.av.results.etf?.netPayout)"></td>
-                      <td class="py-2 px-2 text-right text-purple-400" x-text="fmt.formatEur($store.av.results.rv?.netPayout)"></td>
-                      <td class="py-2 px-2 text-right text-cyan-400" x-text="fmt.formatEur($store.av.results.avd?.netPayout)"></td>
-                      <td class="py-2 px-2 text-right text-pink-400" x-show="$store.av.results.ruerup" x-text="fmt.formatEur($store.av.results.ruerup?.netPayout)"></td>
-                      <td class="py-2 px-2 text-right text-slate-300" x-show="$store.av.results.riester" x-text="fmt.formatEur($store.av.results.riester?.netPayout)"></td>
+                      <td class="py-2 px-2 text-right text-green-400"><span x-bind="calcAttrs(calc.av.netPayout, $store.av.results.etf)" x-text="fmt.formatEur($store.av.results.etf?.netPayout)"></span></td>
+                      <td class="py-2 px-2 text-right text-purple-400"><span x-bind="calcAttrs(calc.av.netPayout, $store.av.results.rv)" x-text="fmt.formatEur($store.av.results.rv?.netPayout)"></span></td>
+                      <td class="py-2 px-2 text-right text-cyan-400"><span x-bind="calcAttrs(calc.av.netPayout, $store.av.results.avd)" x-text="fmt.formatEur($store.av.results.avd?.netPayout)"></span></td>
+                      <td class="py-2 px-2 text-right text-pink-400" x-show="$store.av.results.ruerup"><span x-bind="calcAttrs(calc.av.netPayout, $store.av.results.ruerup)" x-text="fmt.formatEur($store.av.results.ruerup?.netPayout)"></span></td>
+                      <td class="py-2 px-2 text-right text-slate-300" x-show="$store.av.results.riester"><span x-bind="calcAttrs(calc.av.netPayout, $store.av.results.riester)" x-text="fmt.formatEur($store.av.results.riester?.netPayout)"></span></td>
                     </tr>
                   </tbody>
                 </table>

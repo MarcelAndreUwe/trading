@@ -11,6 +11,7 @@ import { PROVIDERS, RUERUP_PROVIDERS, RIESTER_PROVIDERS } from './data/insurance
 import { callGeminiAnalysis, hasApiKey, TEMPERATURE_BY_TEMPLATE, testConnection as aiTestConnection } from './ai-client.js';
 import { buildPensionAnalysisPrompt } from './ai-prompts.js';
 import { renderAiResult, renderAiError, renderAiLoading } from './ai-renderer.js';
+import './calc-explanations.js';
 
 window.aiTestConnection = aiTestConnection;
 
@@ -55,7 +56,8 @@ Alpine.store('av', {
   ui: {
     activeTab: 'vermoegen',
     showGlossary: false,
-    showSettings: false
+    showSettings: false,
+    mobileMenuOpen: false
   },
   ai: {
     loading: false,
@@ -232,6 +234,29 @@ Alpine.data('altersvorsorgeRechner', () => ({
     if (store.ai.error) return renderAiError(store.ai.error);
     if (store.ai.result) return renderAiResult(store.ai.result);
     return '';
+  },
+
+  /**
+   * Liefert ein Attribut-Objekt für x-bind, das einen Rechenweg-Tooltip aktiviert.
+   * Auf der Altersvorsorge-Seite immer aktiv — kein Toggle nötig.
+   * Nutzung: <span x-bind="calcAttrs(calc.av.etfGrossReturn, s, $store.av.inputs)">…</span>
+   */
+  calcAttrs(fn, ...args) {
+    try {
+      const c = fn(...args);
+      if (!c || !c.formula) return {};
+      return {
+        class: 'calc-trigger',
+        tabindex: '0',
+        'data-calc-name': c.name || '',
+        'data-calc-formula': c.formula || '',
+        'data-calc-filled': c.filled || '',
+        'data-calc-result': c.result || '',
+        'data-calc-explanation': c.explanation || ''
+      };
+    } catch (e) {
+      return {};
+    }
   },
 
   formatEur: fmt.formatEur,

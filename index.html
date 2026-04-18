@@ -64,15 +64,15 @@
         </svg>
         <h1 class="text-lg font-bold hidden sm:block">Trading Cockpit</h1>
       </div>
-      <nav class="flex items-center gap-1 ml-4 hidden sm:flex">
-        <a href="index.html" class="px-3 py-1.5 text-sm rounded-lg bg-brand/20 text-brand font-medium">Trading</a>
-        <a href="altersvorsorge.html" class="px-3 py-1.5 text-sm rounded-lg text-slate-400 hover:text-slate-200 hover:bg-surface-700 transition-colors">Altersvorsorge</a>
+      <nav class="flex items-center gap-1 ml-2 sm:ml-4">
+        <a href="index.html" class="px-2 sm:px-3 py-1.5 text-xs sm:text-sm rounded-lg bg-brand/20 text-brand font-medium">Trading</a>
+        <a href="altersvorsorge.html" class="px-2 sm:px-3 py-1.5 text-xs sm:text-sm rounded-lg text-slate-400 hover:text-slate-200 hover:bg-surface-700 transition-colors">Altersvorsorge</a>
       </nav>
     </div>
 
     <div class="flex items-center gap-2">
-      <!-- API Status -->
-      <div class="flex items-center gap-1.5 text-xs px-2 py-1 rounded-full"
+      <!-- API Status (Desktop) -->
+      <div class="hidden md:flex items-center gap-1.5 text-xs px-2 py-1 rounded-full"
            :class="$store.app.settings.apiKey ? 'bg-green-500/10 text-green-400' : 'bg-amber-500/10 text-amber-400'">
         <span class="w-2 h-2 rounded-full"
               :class="$store.app.settings.apiKey ? 'bg-green-500' : 'bg-amber-500'"></span>
@@ -322,9 +322,9 @@
           <!-- Brutto-Gewinn -->
           <div class="bg-surface-800 rounded-xl border border-surface-700 p-4">
             <div class="text-xs text-slate-400 mb-1">Brutto-Gewinn</div>
-            <div class="text-xl font-bold"
-                 :class="fmt.profitColorClass($store.app.computed.grossGain)"
-                 x-text="fmt.formatEurSigned($store.app.computed.grossGain)">
+            <div class="text-xl font-bold" :class="fmt.profitColorClass($store.app.computed.grossGain)">
+              <span x-bind="$store.app.computed.pnl ? calcAttrs(calc.tc.grossGain, $store.app.position, $store.app.computed.pnl) : {}"
+                    x-text="fmt.formatEurSigned($store.app.computed.grossGain)"></span>
             </div>
             <div class="text-xs mt-1"
                  :class="fmt.profitColorClass($store.app.computed.grossGain)"
@@ -340,8 +340,9 @@
                 <span class="tooltip-content">Summe aus Abgeltungssteuer, Solidaritaetszuschlag und ggf. Kirchensteuer</span>
               </span>
             </div>
-            <div class="text-xl font-bold text-purple-400"
-                 x-text="$store.app.computed.totalTax > 0 ? '-' + fmt.formatEur($store.app.computed.totalTax) : fmt.formatEur(0)">
+            <div class="text-xl font-bold text-purple-400">
+              <span x-bind="$store.app.computed.pnl ? calcAttrs(calc.tc.totalTax, $store.app.computed.pnl) : {}"
+                    x-text="$store.app.computed.totalTax > 0 ? '-' + fmt.formatEur($store.app.computed.totalTax) : fmt.formatEur(0)"></span>
             </div>
             <div class="text-xs text-purple-400/70 mt-1" x-show="$store.app.computed.pnl">
               <span x-text="'AbgSt: ' + fmt.formatEur($store.app.computed.pnl?.abgeltungssteuer || 0)"></span>
@@ -351,9 +352,9 @@
           <!-- Netto-Gewinn -->
           <div class="bg-surface-800 rounded-xl border border-surface-700 p-4">
             <div class="text-xs text-slate-400 mb-1">Netto-Gewinn</div>
-            <div class="text-xl font-bold"
-                 :class="fmt.profitColorClass($store.app.computed.netGain)"
-                 x-text="fmt.formatEurSigned($store.app.computed.netGain)">
+            <div class="text-xl font-bold" :class="fmt.profitColorClass($store.app.computed.netGain)">
+              <span x-bind="$store.app.computed.pnl ? calcAttrs(calc.tc.netGain, $store.app.computed.pnl) : {}"
+                    x-text="fmt.formatEurSigned($store.app.computed.netGain)"></span>
             </div>
             <div class="text-xs text-slate-500 mt-1">nach Steuern & Gebühren</div>
           </div>
@@ -367,8 +368,9 @@
               </span>
             </div>
             <div class="text-xl font-bold"
-                 :class="$store.app.computed.taxDragPercent > 30 ? 'text-red-400' : $store.app.computed.taxDragPercent > 20 ? 'text-amber-400' : 'text-green-400'"
-                 x-text="fmt.formatPercent($store.app.computed.taxDragPercent)">
+                 :class="$store.app.computed.taxDragPercent > 30 ? 'text-red-400' : $store.app.computed.taxDragPercent > 20 ? 'text-amber-400' : 'text-green-400'">
+              <span x-bind="$store.app.computed.pnl ? calcAttrs(calc.tc.taxDrag, $store.app.computed.pnl, $store.app.computed.taxDragPercent) : {}"
+                    x-text="fmt.formatPercent($store.app.computed.taxDragPercent)"></span>
             </div>
             <div class="w-full bg-surface-700 rounded-full h-1.5 mt-2">
               <div class="h-1.5 rounded-full transition-all duration-300"
@@ -526,10 +528,15 @@
                 <!-- Haupt-Ergebnis -->
                 <div class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-5">
                   <div class="text-sm text-amber-300 mb-1">Break-Even Rückkaufkurs</div>
-                  <div class="text-3xl font-bold text-amber-400" x-text="fmt.formatEur($store.app.computed.breakEvenRebuy.breakEvenRebuyPrice)"></div>
+                  <div class="text-3xl font-bold text-amber-400">
+                    <span x-bind="calcAttrs(calc.tc.breakEvenRebuy, $store.app.position, $store.app.computed.breakEvenRebuy)"
+                          x-text="fmt.formatEur($store.app.computed.breakEvenRebuy.breakEvenRebuyPrice)"></span>
+                  </div>
                   <div class="text-sm text-amber-300/70 mt-1">
                     Der Kurs muss um mindestens
-                    <span class="font-medium text-amber-300" x-text="fmt.formatPercent($store.app.computed.breakEvenRebuy.requiredDropPercent)"></span>
+                    <span class="font-medium text-amber-300"
+                          x-bind="calcAttrs(calc.tc.requiredDrop, $store.app.computed.breakEvenRebuy, $store.app.position.currentPrice || $store.app.position.buyPrice)"
+                          x-text="fmt.formatPercent($store.app.computed.breakEvenRebuy.requiredDropPercent)"></span>
                     fallen (<span x-text="fmt.formatEur($store.app.computed.breakEvenRebuy.requiredDropEur)"></span>)
                   </div>
                 </div>
@@ -642,11 +649,16 @@
                        get fromBuyPct() { return this.buy > 0 ? ((this.target - this.buy) / this.buy) * 100 : 0 }
                      }">
                   <div class="text-sm text-green-300 mb-1">Benötigter Verkaufskurs</div>
-                  <div class="text-3xl font-bold text-green-400" x-text="fmt.formatEur(target)"></div>
+                  <div class="text-3xl font-bold text-green-400">
+                    <span x-bind="calcAttrs(calc.tc.targetSellPrice, $store.app.position, $store.app.computed.targetCalc)"
+                          x-text="fmt.formatEur(target)"></span>
+                  </div>
                   <div class="text-sm text-green-300/70 mt-2 space-y-1">
                     <div x-show="current > 0 && current !== buy">
                       Vom aktuellen Kurs (<span x-text="fmt.formatEur(current)"></span>):
-                      <span class="font-medium text-green-300" x-text="fromCurrentPct >= 0 ? '+' + fromCurrentPct.toFixed(1) + '%' : fromCurrentPct.toFixed(1) + '%'"></span>
+                      <span class="font-medium text-green-300"
+                            x-bind="calcAttrs(calc.tc.requiredGainFromCurrent, $store.app.position, $store.app.computed.targetCalc)"
+                            x-text="fromCurrentPct >= 0 ? '+' + fromCurrentPct.toFixed(1) + '%' : fromCurrentPct.toFixed(1) + '%'"></span>
                       <span x-text="'(' + fmt.formatEur(target - current) + ')'"></span>
                       <span x-show="fromCurrentPct <= 0" class="text-green-400 font-medium"> — Ziel bereits erreicht!</span>
                     </div>
@@ -990,6 +1002,7 @@
                   <div>
                     <span class="text-sm text-slate-400">Chancen-Risiko-Verhältnis:</span>
                     <span class="text-2xl font-bold ml-2" :class="ratingColor"
+                          x-bind="calcAttrs(calc.tc.rrRatio, $store.app.position)"
                           x-text="'1 : ' + (ratio > 10 ? '∞' : ratio.toFixed(1))"></span>
                   </div>
                   <div class="text-right text-sm">
@@ -1036,12 +1049,18 @@
                 <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
                   <div class="bg-surface-900 rounded-lg p-3">
                     <div class="text-xs text-slate-400">Taegliche Volatilitaet</div>
-                    <div class="text-lg font-bold text-amber-400" x-text="fmt.formatPercent($store.app.computed.volatility.dailyVol * 100)"></div>
+                    <div class="text-lg font-bold text-amber-400">
+                      <span x-bind="calcAttrs(calc.tc.dailyVol, $store.app.computed.volatility)"
+                            x-text="fmt.formatPercent($store.app.computed.volatility.dailyVol * 100)"></span>
+                    </div>
                     <div class="text-xs text-slate-500">Standardabweichung</div>
                   </div>
                   <div class="bg-surface-900 rounded-lg p-3">
                     <div class="text-xs text-slate-400">Woechentliche Volatilitaet</div>
-                    <div class="text-lg font-bold text-amber-400" x-text="fmt.formatPercent($store.app.computed.volatility.weeklyVol * 100)"></div>
+                    <div class="text-lg font-bold text-amber-400">
+                      <span x-bind="calcAttrs(calc.tc.weeklyVol, $store.app.computed.volatility)"
+                            x-text="fmt.formatPercent($store.app.computed.volatility.weeklyVol * 100)"></span>
+                    </div>
                   </div>
                   <div class="bg-surface-900 rounded-lg p-3">
                     <div class="text-xs text-slate-400">
@@ -1050,12 +1069,18 @@
                         <span class="tooltip-content">Average True Range - Die durchschnittliche taegliche Schwankungsbreite über 14 Tage.</span>
                       </span>
                     </div>
-                    <div class="text-lg font-bold text-amber-400" x-text="fmt.formatEur($store.app.computed.volatility.atr)"></div>
+                    <div class="text-lg font-bold text-amber-400">
+                      <span x-bind="calcAttrs(calc.tc.atr, $store.app.computed.volatility)"
+                            x-text="fmt.formatEur($store.app.computed.volatility.atr)"></span>
+                    </div>
                     <div class="text-xs text-slate-500" x-text="fmt.formatPercent($store.app.computed.volatility.atrPercent) + ' vom Kurs'"></div>
                   </div>
                   <div class="bg-surface-900 rounded-lg p-3">
                     <div class="text-xs text-slate-400">Annualisiert</div>
-                    <div class="text-lg font-bold text-amber-400" x-text="fmt.formatPercent($store.app.computed.volatility.annualVol * 100)"></div>
+                    <div class="text-lg font-bold text-amber-400">
+                      <span x-bind="calcAttrs(calc.tc.annualVol, $store.app.computed.volatility)"
+                            x-text="fmt.formatPercent($store.app.computed.volatility.annualVol * 100)"></span>
+                    </div>
                   </div>
                 </div>
 
@@ -1202,8 +1227,10 @@
                   <div class="text-sm" :class="$store.app.computed.dcaResult.winner === 'sparplan' ? 'text-cyan-300' : 'text-green-300'"
                        x-text="$store.app.computed.dcaResult.winnerLabel"></div>
                   <div class="text-2xl font-bold mt-1"
-                       :class="$store.app.computed.dcaResult.winner === 'sparplan' ? 'text-cyan-400' : 'text-green-400'"
-                       x-text="'Unterschied: ' + fmt.formatEur($store.app.computed.dcaResult.opportunityCost)"></div>
+                       :class="$store.app.computed.dcaResult.winner === 'sparplan' ? 'text-cyan-400' : 'text-green-400'">
+                    <span x-bind="calcAttrs(calc.tc.dcaOpportunity, $store.app.computed.dcaResult)"
+                          x-text="'Unterschied: ' + fmt.formatEur($store.app.computed.dcaResult.opportunityCost)"></span>
+                  </div>
                 </div>
 
                 <!-- Vergleichstabelle -->
@@ -1241,7 +1268,9 @@
                     <div class="space-y-2 text-sm">
                       <div class="flex justify-between">
                         <span class="text-slate-400">Aktien:</span>
-                        <span class="text-slate-200" x-text="fmt.formatNumber($store.app.computed.dcaResult.dca.totalShares)"></span>
+                        <span class="text-slate-200"
+                              x-bind="calcAttrs(calc.tc.dcaShares, $store.app.computed.dcaResult, $store.app.computed.dcaResult.dca.monthlyAmount)"
+                              x-text="fmt.formatNumber($store.app.computed.dcaResult.dca.totalShares)"></span>
                       </div>
                       <div class="flex justify-between">
                         <span class="text-slate-400">Ø Kaufkurs:</span>

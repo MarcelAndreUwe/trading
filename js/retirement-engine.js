@@ -35,8 +35,39 @@
  */
 
 import { getEffectiveTaxRate } from './tax-engine.js';
+import * as K from './tax-constants.js';
 
 function round2(v) { return Math.round(v * 100) / 100; }
+
+/**
+ * Berechnet den effektiven Steuersatz im Rentenalter inkl. Soli + KiSt.
+ * Soli-Freigrenze: §3 SolZG — fällt weg wenn EkSt unter Freigrenze liegt.
+ *
+ * @param {number} baseRate - persönlicher EkSt-Satz (z.B. 0.25)
+ * @param {number} kirchensteuerRate - 0, 0.08 oder 0.09
+ * @param {number} estimatedTaxableIncome - geschätzte steuerpflichtige Einkünfte p.a.
+ * @returns {number} effektiver Gesamtsatz
+ */
+function getRetirementTaxRate(baseRate, kirchensteuerRate = 0, estimatedTaxableIncome = Infinity) {
+  // Soli nur wenn EkSt über Freigrenze
+  const estimatedEkSt = estimatedTaxableIncome * baseRate;
+  const soliApplies = estimatedEkSt > K.SOLI_FREIGRENZE_SINGLE_2025;
+  const soliFactor = soliApplies ? (1 + K.SOLI_RATE_ON_ABGST) : 1.0;
+  // KiSt = Prozent der EkSt
+  const kistFactor = 1 + kirchensteuerRate;
+  return baseRate * soliFactor * kistFactor;
+}
+
+/**
+ * Berechnet realen Wert nach Abzug der Inflation.
+ * @param {number} nominalValue - nomineller Betrag
+ * @param {number} years - Anzahl Jahre
+ * @param {number} inflationRate - z.B. 0.02 für 2%
+ * @returns {number} realer Wert in heutiger Kaufkraft
+ */
+export function realValue(nominalValue, years, inflationRate = K.INFLATION_DEFAULT) {
+  return nominalValue / Math.pow(1 + inflationRate, years);
+}
 
 // ===== ETF-SPARPLAN =====
 
@@ -211,13 +242,14 @@ export function calculateRentenversicherung({
 
   let payoutTax;
   if (meetsRule) {
-    // Teilfreistellung 15% (fondsgebundene Police): nur 85% der Erträge
-    // Halbeinkünfteverfahren: davon nur 50%
-    // Effektiv steuerpflichtig: Gewinn × 0,85 × 0,5 = 42,5%
-    const taxableAmount = round2(totalGain * 0.85 * 0.5);
-    const personalRateInclSoli = personalTaxRateRetirement * 1.055;
-    payoutTax = round2(Math.max(0, taxableAmount) * personalRateInclSoli);
+    // §20 Abs. 1 Nr. 6 EStG — Halbeinkünfteverfahren bei 12/62-Regel:
+    //   Erträge × (1 − 0,15 Teilfreistellung) × 0,5 Halbeinkünfte = 42,5%
+    //   × (EkSt-Satz × (1 + Soli falls über Freigrenze) × (1 + KiSt))
+    const taxableAmount = round2(totalGain * (1 - K.RV_TEILFREISTELLUNG) * K.HALBEINKUENFTE_FAKTOR);
+    const effectiveRate = getRetirementTaxRate(personalTaxRateRetirement, kirchensteuerRate, taxableAmount);
+    payoutTax = round2(Math.max(0, taxableAmount) * effectiveRate);
   } else {
+    // 12/62 nicht erfüllt → volle Abgeltungssteuer
     const abgeltungssteuerRate = getEffectiveTaxRate(kirchensteuerRate);
     payoutTax = round2(Math.max(0, totalGain) * abgeltungssteuerRate);
   }
@@ -331,10 +363,12 @@ export function calculateAltersvorsorgedepot({
     });
   }
 
-  // === AUSZAHLUNG (nachgelagerte Besteuerung) ===
+  // === AUSZAHLUNG (nachgelagerte Besteuerung, Altersvorsorgereformgesetz) ===
   // GESAMTES Kapital wird mit persönl. Einkommensteuersatz besteuert
-  const personalRateInclSoli = personalTaxRateRetirement * 1.055;
-  const payoutTax = round2(portfolio * personalRateInclSoli);
+  // (Grund: Einzahlungen waren voll steuerlich gefördert via Zulagen + Sonderausgaben)
+  // Soli-Freigrenze + KiSt werden berücksichtigt.
+  const effectiveRate = getRetirementTaxRate(personalTaxRateRetirement, kirchensteuerRate, portfolio);
+  const payoutTax = round2(portfolio * effectiveRate);
   const netPayout = round2(portfolio - payoutTax);
   const netPayoutInclDeductions = round2(netPayout + totalTaxDeduction);
 
@@ -366,25 +400,37 @@ export function calculateAltersvorsorgedepot({
 
 /**
  * Besteuerungsanteil für Rentenbeginn (nachgelagerte Besteuerung).
- * Regel seit März 2024: +0,5 Prozentpunkte pro Jahr ab 2023 (83%), bis 100% in 2058.
+ * §22 Nr. 1 Satz 3 EStG — Änderung durch Wachstumschancengesetz (März 2024):
+ * Rückwirkend ab 2023: +0,5 Pp pro Jahr (vorher +1 Pp).
+ * Werte: 2023: 82,5% | 2024: 83,0% | 2025: 83,5% | ... | 2058: 100%
+ * Offiziell bestätigt (Haufe, Steuer-Berater.de, LV1871, 2025).
  */
 function ruerupBesteuerungsanteil(rentenbeginnJahr) {
-  if (rentenbeginnJahr >= 2058) return 1.0;
-  if (rentenbeginnJahr <= 2023) return 0.83;
-  // linear 0.83 (2023) → 1.00 (2058) = 0.005/Jahr
-  return Math.min(1.0, 0.83 + (rentenbeginnJahr - 2023) * 0.005);
+  if (rentenbeginnJahr >= K.RUERUP_BESTEUERUNGSANTEIL_END_JAHR) return 1.0;
+  if (rentenbeginnJahr <= K.RUERUP_BESTEUERUNGSANTEIL_START_JAHR) {
+    return K.RUERUP_BESTEUERUNGSANTEIL_START_WERT;  // 2023: 82,5%
+  }
+  return Math.min(
+    1.0,
+    K.RUERUP_BESTEUERUNGSANTEIL_START_WERT +
+    (rentenbeginnJahr - K.RUERUP_BESTEUERUNGSANTEIL_START_JAHR) * K.RUERUP_BESTEUERUNGSANTEIL_STEIGERUNG
+  );
 }
 
 /**
- * Maximaler Sonderausgabenabzug 2025/2026 (knappschaftl. BBG × 18,9% Max.).
- * 2025: 29.344 € (Single), 58.688 € (verheiratet).
+ * Maximaler Sonderausgabenabzug für Altersvorsorgeaufwendungen (§10 Abs. 3 EStG).
+ * Basis: Beitragsbemessungsgrenze knappschaftliche RV × Beitragssatz der GRV.
+ * 2025: BBG 118.800 € × 24,7% ≈ 29.344 € (Single) bzw. 58.688 € (verheiratet).
  * 2026: ca. 30.826 € prognostiziert.
- * Wir nehmen einen einheitlichen Wert mit leichter jährlicher Steigerung (+2%).
+ *
+ * ACHTUNG: Die hier verwendete 2%-Fortschreibung ist eine VEREINFACHUNG.
+ * Tatsächlich hängt der Höchstbetrag von BBG-Anpassungen und
+ * Beitragssatzänderungen der GRV ab.
  */
 function ruerupHoechstbetrag(year, verheiratet) {
-  const base2025 = verheiratet ? 58688 : 29344;
+  const base2025 = verheiratet ? K.RUERUP_HOECHSTBETRAG_MARRIED_2025 : K.RUERUP_HOECHSTBETRAG_SINGLE_2025;
   const growthYears = Math.max(0, year - 2025);
-  return Math.round(base2025 * Math.pow(1.02, growthYears));
+  return Math.round(base2025 * Math.pow(K.RUERUP_HOECHSTBETRAG_WACHSTUM, growthYears));
 }
 
 /**
@@ -469,13 +515,16 @@ export function calculateRuerup({
   const monthlyPensionGross = round2((portfolio / 10000) * guaranteedPensionFactor);
   const yearlyPensionGross = monthlyPensionGross * 12;
 
-  // Nachgelagerte Besteuerung: nur Besteuerungsanteil mit persönl. Steuersatz × (1 + KiSt + Soli-Freigrenze berücksichtigt vereinfacht)
-  const personalRateInclSoli = personalTaxRateRetirement * 1.055 * (1 + kirchensteuerRate);
-  const yearlyPensionTax = round2(yearlyPensionGross * besteuerungsanteil * personalRateInclSoli);
+  // Nachgelagerte Besteuerung (§22 Nr. 1 Satz 3 EStG):
+  // Nur der Besteuerungsanteil ist steuerpflichtig.
+  // Auf den steuerpflichtigen Teil: persönl. EkSt × (Soli falls über Freigrenze) × (1 + KiSt)
+  const taxableYearlyPension = yearlyPensionGross * besteuerungsanteil;
+  const effectivePensionRate = getRetirementTaxRate(personalTaxRateRetirement, kirchensteuerRate, taxableYearlyPension);
+  const yearlyPensionTax = round2(taxableYearlyPension * effectivePensionRate);
   const yearlyPensionNet = round2(yearlyPensionGross - yearlyPensionTax);
 
-  // Aggregiertes Netto: Annahme 20 Jahre Rentenbezug (typische Lebenserwartung)
-  const pensionYears = 20;
+  // Aggregiertes Netto: Annahme Rentenbezugsdauer (typische Lebenserwartung)
+  const pensionYears = K.LEBENSERWARTUNG_RENTE_JAHRE;
   const totalNetPension = yearlyPensionNet * pensionYears;
 
   return {
@@ -506,25 +555,37 @@ export function calculateRuerup({
 // ===== RIESTER-RENTE (Schicht 2) =====
 
 /**
- * Berechnet die Riester-Zulagen + Mindesteigenbeitrag.
- * Grundzulage 175 €/Jahr, Kinderzulage 300 €/Kind/Jahr (ab 2008 geboren),
- * Berufseinsteigerbonus 200 € einmalig (unter 25).
- * Mindesteigenbeitrag: max(60 €, 4% × Brutto − Zulagen), max. 2.100 € Gesamtförderung.
+ * Berechnet die Riester-Zulagen + Mindesteigenbeitrag (§§79 ff. EStG).
+ * - Grundzulage: 175 €/Jahr (seit 2018)
+ * - Kinderzulage: 300 €/Jahr für Kinder ab 2008, 185 €/Jahr für Kinder vor 2008
+ * - Berufseinsteigerbonus: 200 € einmalig bei Vertragsabschluss unter 25
+ * - Mindesteigenbeitrag: 4% des Vorjahreseinkommens − Zulagen, mind. 60 €
+ * - Maximale Gesamtförderung: 2.100 €/Jahr
+ *
+ * @param {number} grossIncome - Vorjahreseinkommen (brutto)
+ * @param {number} childrenPost2008 - Kinder Geburtsjahr ≥ 2008
+ * @param {number} childrenPre2008 - Kinder Geburtsjahr < 2008
+ * @param {number} age
+ * @param {boolean} isCareerStarter
+ * @param {boolean} isFirstYear
  */
-export function riesterZulagenMindestbeitrag(grossIncome, numberOfChildren, age, isCareerStarter, isFirstYear) {
-  const grundzulage = 175;
-  const kinderzulage = numberOfChildren * 300;
-  const bonus = (isCareerStarter && isFirstYear && age < 25) ? 200 : 0;
+export function riesterZulagenMindestbeitrag(grossIncome, childrenPost2008, childrenPre2008, age, isCareerStarter, isFirstYear) {
+  const grundzulage = K.RIESTER_GRUNDZULAGE;
+  const kinderzulage = (childrenPost2008 || 0) * K.RIESTER_KINDERZULAGE_AB_2008
+                    + (childrenPre2008 || 0) * K.RIESTER_KINDERZULAGE_VOR_2008;
+  const bonus = (isCareerStarter && isFirstYear && age < 25) ? K.RIESTER_BERUFSEINSTEIGERBONUS : 0;
   const zulagen = grundzulage + kinderzulage + bonus;
 
-  // Mindesteigenbeitrag für volle Zulagen
-  const vierProzent = grossIncome * 0.04;
-  const mindestEigenbeitrag = Math.max(60, Math.min(2100 - zulagen, vierProzent - zulagen));
+  const vierProzent = grossIncome * K.RIESTER_MINDESTQUOTE;
+  const mindestEigenbeitrag = Math.max(
+    K.RIESTER_MINDESTEIGENBEITRAG,
+    Math.min(K.RIESTER_MAX_BEITRAG - zulagen, vierProzent - zulagen)
+  );
 
   return {
     grundzulage, kinderzulage, bonus, zulagen: round2(zulagen),
-    mindestEigenbeitrag: round2(Math.max(60, mindestEigenbeitrag)),
-    maxGesamt: 2100
+    mindestEigenbeitrag: round2(Math.max(K.RIESTER_MINDESTEIGENBEITRAG, mindestEigenbeitrag)),
+    maxGesamt: K.RIESTER_MAX_BEITRAG
   };
 }
 
@@ -545,7 +606,11 @@ export function riesterZulagenMindestbeitrag(grossIncome, numberOfChildren, age,
  */
 export function calculateRiester({
   monthlyAmount, returnRate, costRate,
-  grossIncome = 0, numberOfChildren = 0, isCareerStarter = false,
+  grossIncome = 0,
+  numberOfChildren = 0,              // legacy: alle ab 2008
+  childrenPost2008 = null,           // Kinder ab 2008 (neu, optional)
+  childrenPre2008 = 0,               // Kinder vor 2008 (neu, optional)
+  isCareerStarter = false,
   personalTaxRateCurrent = 0.35, personalTaxRateRetirement = 0.25,
   kirchensteuerRate = 0,
   currentAge, retirementAge, initialBalance = 0
@@ -553,22 +618,23 @@ export function calculateRiester({
   const years = retirementAge - currentAge;
   if (years <= 0) return null;
 
-  // Max. 2.100 €/Jahr inkl. Zulagen → Eigenbeitrag wird gedeckelt
+  // Rückwärtskompatibilität: wenn childrenPost2008 nicht gesetzt, verwende numberOfChildren
+  const post2008 = childrenPost2008 !== null ? childrenPost2008 : numberOfChildren;
+
   const yearlyWant = monthlyAmount * 12;
 
   let portfolio = initialBalance;
-  let totalContributed = initialBalance; // nur Eigenbeiträge
+  let totalContributed = initialBalance;
   let totalZulagen = 0;
-  let totalTaxDeduction = 0; // aus Günstigerprüfung
+  let totalTaxDeduction = 0;
   let cumulativeCosts = 0;
   const snapshots = [];
 
   for (let y = 0; y < years; y++) {
     const age = currentAge + y;
-    const z = riesterZulagenMindestbeitrag(grossIncome, numberOfChildren, age, isCareerStarter, y === 0);
+    const z = riesterZulagenMindestbeitrag(grossIncome, post2008, childrenPre2008, age, isCareerStarter, y === 0);
 
-    // Eigenbeitrag: User-Wunsch, aber Gesamt (Eigen + Zulagen) gedeckelt auf 2.100 €
-    const maxEigenForFullFoerderung = Math.max(60, 2100 - z.zulagen);
+    const maxEigenForFullFoerderung = Math.max(K.RIESTER_MINDESTEIGENBEITRAG, K.RIESTER_MAX_BEITRAG - z.zulagen);
     const eigenbeitrag = Math.min(yearlyWant, maxEigenForFullFoerderung);
 
     // Zulagen nur anteilig wenn Mindesteigenbeitrag nicht erreicht wird
@@ -614,10 +680,12 @@ export function calculateRiester({
     });
   }
 
-  // Auszahlung: 100% nachgelagerte Besteuerung
-  // Optional: 30% Einmalauszahlung (steuerpflichtig), Rest als Rente
-  const personalRateInclSoli = personalTaxRateRetirement * 1.055;
-  const payoutTax = round2(portfolio * personalRateInclSoli);
+  // Auszahlung (§22 Nr. 5 EStG): 100% nachgelagerte Besteuerung
+  // Geförderter Teil (Eigenbeiträge + Zulagen + Erträge) wird voll besteuert.
+  // Optional: 30% Einmalauszahlung möglich, restl. 70% als lebenslange Rente.
+  // Soli-Freigrenze + KiSt werden berücksichtigt.
+  const effectiveRate = getRetirementTaxRate(personalTaxRateRetirement, kirchensteuerRate, portfolio);
+  const payoutTax = round2(portfolio * effectiveRate);
   const netPayout = round2(portfolio - payoutTax);
   const netPayoutInclDeductions = round2(netPayout + totalTaxDeduction);
 

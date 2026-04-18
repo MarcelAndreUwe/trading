@@ -41,6 +41,18 @@
   display: none !important;
 }
 
+/* Rechenweg-Trigger (Zahlen mit Formel-Erklärung) */
+.calc-trigger {
+  cursor: help;
+  border-bottom: 1px dotted rgba(6, 182, 212, 0.35);
+  transition: background-color 0.15s;
+}
+.calc-trigger:hover,
+.calc-trigger:focus {
+  background-color: rgba(6, 182, 212, 0.08);
+  border-radius: 3px;
+}
+
 /* Globaler Tooltip (wird per JS erzeugt und an body gehängt) */
 #global-tooltip {
   position: fixed;
@@ -59,6 +71,77 @@
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
   pointer-events: none;
   display: none;
+}
+
+/* Erweiterte Darstellung für Rechenweg-Tooltips */
+#global-tooltip.is-calc {
+  max-width: min(480px, calc(100vw - 24px));
+  max-height: min(70vh, 540px);
+  overflow-y: auto;
+  padding: 0.875rem 1.125rem;
+  pointer-events: auto; /* Scrollen erlauben */
+}
+#global-tooltip.is-calc .calc-tip-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #F8FAFC;
+  margin-bottom: 0.625rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #334155;
+}
+#global-tooltip.is-calc .calc-tip-section {
+  margin-top: 0.625rem;
+}
+#global-tooltip.is-calc .calc-tip-section:first-of-type {
+  margin-top: 0;
+}
+#global-tooltip.is-calc .calc-tip-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #94A3B8;
+  margin-bottom: 0.2rem;
+}
+#global-tooltip.is-calc .calc-tip-formula,
+#global-tooltip.is-calc .calc-tip-filled {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  padding: 0.5rem 0.65rem;
+  border-radius: 0.4rem;
+  white-space: normal;
+  /* Umbruch zwischen Wörtern (Leerzeichen), und nur wenn nichts anderes passt innerhalb
+     langer Wörter — aber OHNE eingefügte Bindestriche (sonst als Minus lesbar). */
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: none;
+  -webkit-hyphens: none;
+  -ms-hyphens: none;
+}
+#global-tooltip.is-calc .calc-tip-formula {
+  color: #E2E8F0;
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+#global-tooltip.is-calc .calc-tip-filled {
+  color: #E0F2FE;
+  background: rgba(6, 182, 212, 0.08);
+  border: 1px solid rgba(6, 182, 212, 0.25);
+}
+#global-tooltip.is-calc .calc-tip-result {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #86EFAC;
+  padding: 0.35rem 0.55rem;
+  background: rgba(34, 197, 94, 0.08);
+  border-radius: 0.3rem;
+}
+#global-tooltip.is-calc .calc-tip-explanation {
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: #CBD5E1;
 }
 
 /* Range Slider Styling */

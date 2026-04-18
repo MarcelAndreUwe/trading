@@ -18,6 +18,7 @@ import * as api from './api-client.js';
 import { callGeminiAnalysis, hasApiKey, TEMPERATURE_BY_TEMPLATE, testConnection as aiTestConnection } from './ai-client.js';
 import { buildTradingAssessmentPrompt, buildStockForecastPrompt } from './ai-prompts.js';
 import { renderAiResult, renderAiError, renderAiLoading } from './ai-renderer.js';
+import './calc-explanations.js';
 
 // Global für inline Settings-Handler
 window.aiTestConnection = aiTestConnection;
@@ -444,6 +445,30 @@ Alpine.data('tradingCockpit', () => ({
     if (store.ai.error) return renderAiError(store.ai.error);
     if (store.ai.result) return renderAiResult(store.ai.result);
     return '';
+  },
+
+  /**
+   * Liefert ein Attribut-Objekt für x-bind, das einen Rechenweg-Tooltip aktiviert.
+   * Im Trading Cockpit immer aktiv (kein Toggle) — nur bei fehlenden/ungültigen
+   * Eingaben (z.B. noch keine Position) wird der Tooltip weggelassen.
+   * Nutzung: <span x-bind="calcAttrs(calc.tc.grossGain, pos, pnl)">…</span>
+   */
+  calcAttrs(fn, ...args) {
+    try {
+      const c = fn(...args);
+      if (!c || !c.formula) return {};
+      return {
+        class: 'calc-trigger',
+        tabindex: '0',
+        'data-calc-name': c.name || '',
+        'data-calc-formula': c.formula || '',
+        'data-calc-filled': c.filled || '',
+        'data-calc-result': c.result || '',
+        'data-calc-explanation': c.explanation || ''
+      };
+    } catch (e) {
+      return {};
+    }
   },
 
   formatEur: fmt.formatEur,

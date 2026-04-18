@@ -4,7 +4,7 @@
  * Network-First fuer API-Calls
  */
 
-const CACHE_NAME = 'trading-cockpit-v13';
+const CACHE_NAME = 'trading-cockpit-v15';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -29,6 +29,7 @@ const STATIC_ASSETS = [
   './js/data/german-stocks.js',
   './js/data/insurance-providers.js',
   './js/tooltip.js',
+  './js/calc-explanations.js',
   './js/ai-client.js',
   './js/ai-prompts.js',
   './js/ai-renderer.js',
